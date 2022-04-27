@@ -5,11 +5,11 @@
 @Contact: ta19@mails.tsinghua.edu.cn
 @File: main_partseg.py
 @Time: 2019/12/31 11:17 AM
-sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python main_final.py --exp_name dgcnn_128_run2 --model dgcnn --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
-sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python main_final.py --exp_name vnn_128_run2 --model vnn --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
-sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python main_final.py --exp_name complex_only_128_run2 --model complex_only --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
-sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python main_final.py --exp_name shell_only_128_run2 --model shell_only --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
-sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python main_final.py --exp_name oavnn_128_run2 --model oavnn --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
+sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python run_models.py --exp_name dgcnn_128_run0 --model dgcnn --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
+sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python run_models.py --exp_name vnn_128_run0 --model vnn --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
+sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python run_models.py --exp_name complex_only_128_run0 --model complex_only --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
+sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python run_models.py --exp_name shell_only_128_run0 --model shell_only --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
+sbatch 3gpu.sbatch /orion/u/sidhikab/miniconda/envs/3d/bin/python run_models.py --exp_name oavnn_128_run0 --model oavnn --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
 python main_final.py --exp_name test --model oavnn --rot so3 --class_choice airplane --dataset shapenet_single_class --num_points 128
 python main_combined.py --exp_name test --model eqcnn --rot so3 --class_choice airplane --dataset shapenetfourfb --num_points 512
 export HDF5_USE_FILE_LOCKING=FALSE
@@ -25,9 +25,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data import *
-from model import DGCNN_partseg
-from model_equi import EQCNN_partseg
-from model_equi_new import *
+from model import *
 import numpy as np
 from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
@@ -115,15 +113,15 @@ def train(args, io):
     #Try to load models
     seg_start_index = train_loader.dataset.seg_start_index
     if args.model == "dgcnn": # dgcnn_128, num_points=64
-        model = DGCNN_partseg(args, seg_num_all).to(device)
+        model = DGCNN(args, seg_num_all).to(device)
     elif args.model == "vnn": # vnn_128, num_points=64
-        model = EQCNN_partseg(args, seg_num_all).to(device)
+        model = VNN(args, seg_num_all).to(device)
     elif args.model == "complex_only": # complex_only_128, num_points=128
-        model = EQCNN_complex(args, seg_num_all).to(device)
+        model = Complex_Only(args, seg_num_all).to(device)
     elif args.model == "shell_only": # shell_only_128, num_points=128
-        model = EQCNN_partseg_shell_channels(args, seg_num_all).to(device)
+        model = Shell_Only(args, seg_num_all).to(device)
     elif args.model == "oavnn": # oavnn_128, num_points=128
-        model = EQCNN_complex_shell(args, seg_num_all).to(device)
+        model = OAVNN(args, seg_num_all).to(device)
     
 
     model = nn.DataParallel(model)

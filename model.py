@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+# !/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 @Author: Yue Wang
@@ -133,52 +133,6 @@ class VNEmbedding(nn.Module):
 
         concat_x = concat_x.permute(0, 3, 1, 2, 4).contiguous()
         return concat_x
-
-
-def vn_get_keypoints(a, f):
-    '''
-    a: point features of shape [B, K, P]
-    f: point features of shape [B, C, P]
-    '''
-
-    af = torch.unsqueeze(a, 2) * torch.unsqueeze(f, 1)  # B x K x C x P
-    num = af.permute(3, 2, 0, 1)  # P x C x B x K
-
-    sum_a = torch.sum(a, 2)  # B x K
-    denom = sum_a + EPS
-
-    div = num / denom  # P x C x B x K
-    mu = torch.sum(div, 0).permute(1, 2, 0)  # B x K x C
-
-    return mu
-
-
-class VNRegression(nn.Module):
-    def __init__(self, in_channels):
-        super(VNRegression, self).__init__()
-        self.w1 = nn.Linear(in_channels * in_channels, 1, bias=False)
-        self.w2 = nn.Linear(in_channels * in_channels, 1, bias=False)
-
-    def forward(self, x):
-        '''
-        x: point features of shape [B, K, C]
-        '''
-        B, K, C = x.size()
-        x = torch.unsqueeze(x, 2)  # B x K x 1 x C
-        pairwise_difference = x - torch.transpose(x, 1, 2)  # B x K x K x C
-        pairwise_difference = torch.reshape(pairwise_difference, (B, K * K, C))  # B x K * K x C
-        v1 = torch.squeeze(self.w1(pairwise_difference.transpose(1, -1)), 2)  # B x C
-        norm_v1 = torch.sqrt(torch.sum(v1 * v1, 1) + EPS)  # B
-        v1 = torch.transpose(torch.transpose(v1, 0, 1) / norm_v1, 0, 1)  # B x C
-        v2 = torch.squeeze(self.w2(pairwise_difference.transpose(1, -1)), 2)  # B x C
-        norm_v2 = torch.sqrt(torch.sum(v2 * v2, 1) + EPS)  # B
-        v2 = torch.transpose(torch.transpose(v2, 0, 1) / norm_v2, 0, 1)  # B x C
-        v3 = torch.cross(v1, v2, dim=1)
-        v1 = torch.unsqueeze(v1, 1)
-        v2 = torch.unsqueeze(v2, 1)
-        v3 = torch.unsqueeze(v3, 1)
-        r = torch.cat((v1, v2, v3), 1)
-        return r
 
 
 def dot_prod_attention_weights(Q, K):
@@ -358,18 +312,11 @@ def get_on_vector(normalized_J):
     # get [x, y]
     sub_vec_J = normalized_J[:, :, :, :2]  # b x c x e x 2
 
-    edge_fix = torch.zeros(sub_vec_J.size())
-    edge_fix[:,:,:,0] = 1
-    mask = sub_vec_J.sum(dim=-1) == 0
-    opp_mask = sub_vec_J.sum(dim=-1) != 0
-    sub_vec_J = sub_vec_J + edge_fix * mask
-
     # calculate (x^2 + y^2)
     U_z = torch.squeeze(torch.squeeze(torch.matmul(sub_vec_J.unsqueeze(3), sub_vec_J.unsqueeze(4)), 4), 3)  # b x c x e
 
     # calculate -(x^2 + y^2) / (z + eps)
     U_z = -U_z / (normalized_J[:, :, :, 2] + EPS)  # b x c x e
-    U_z = U_z * opp_mask
 
     # form [x, y, -(x^2 + y^2) / (z + eps)]
     U = torch.cat((sub_vec_J, U_z.unsqueeze(3)), dim=3)  # b x c x e x 3
@@ -477,7 +424,7 @@ class VNLeakyReLU(nn.Module):
         mask = (dotprod >= 0).float()
         d_norm_sq = (d * d).sum(2, keepdim=True)
         x_out = self.negative_slope * x + (1 - self.negative_slope) * (
-                    mask * x + (1 - mask) * (x - (dotprod / (d_norm_sq + EPS)) * d))
+                mask * x + (1 - mask) * (x - (dotprod / (d_norm_sq + EPS)) * d))
         return x_out
 
 
@@ -524,7 +471,7 @@ class VNLinearLeakyReLU(nn.Module):
         mask = (dotprod >= 0).float()
         d_norm_sq = (d * d).sum(2, keepdims=True)
         x_out = self.negative_slope * p + (1 - self.negative_slope) * (
-                    mask * p + (1 - mask) * (p - (dotprod / (d_norm_sq + EPS)) * d))
+                mask * p + (1 - mask) * (p - (dotprod / (d_norm_sq + EPS)) * d))
         return x_out
 
 
@@ -581,7 +528,7 @@ class VNReflectionLinearLeakyReLU(nn.Module):
         mask = (dotprod >= 0).float()
         d_norm_sq = (d * d).sum(2, keepdims=True)
         x_out = self.negative_slope * p + (1 - self.negative_slope) * (
-                    mask * p + (1 - mask) * (p - (dotprod / (d_norm_sq + EPS)) * d))
+                mask * p + (1 - mask) * (p - (dotprod / (d_norm_sq + EPS)) * d))
         return x_out
 
 
@@ -635,7 +582,7 @@ class VNReflectionLinearLeakyReLUBOnly(nn.Module):
         mask = (dotprod >= 0).float()
         d_norm_sq = (d * d).sum(2, keepdims=True)
         x_out = self.negative_slope * p + (1 - self.negative_slope) * (
-                    mask * p + (1 - mask) * (p - (dotprod / (d_norm_sq + EPS)) * d))
+                mask * p + (1 - mask) * (p - (dotprod / (d_norm_sq + EPS)) * d))
         return x_out
 
 
@@ -940,104 +887,186 @@ class VNSimpleStdFeature(nn.Module):
         return x_std, z0
 
 
-class EQCNN_cls(nn.Module):
-    def __init__(self, args, output_channels=40):
-        super(EQCNN_cls, self).__init__()
+def dgcnn_get_graph_feature(x, k=20, idx=None, dim9=False):
+    batch_size = x.size(0)
+    num_points = x.size(2)
+    x = x.view(batch_size, -1, num_points)
+    if idx is None:
+        if dim9 == False:
+            idx = knn(x, k=k)   # (batch_size, num_points, k)
+        else:
+            idx = knn(x[:, 6:], k=k)
+    device = torch.device('cuda')
+
+    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1)*num_points
+
+    idx = idx + idx_base
+
+    idx = idx.view(-1)
+ 
+    _, num_dims, _ = x.size()
+
+    x = x.transpose(2, 1).contiguous()   # (batch_size, num_points, num_dims)  -> (batch_size*num_points, num_dims) #   batch_size * num_points * k + range(0, batch_size*num_points)
+    feature = x.view(batch_size*num_points, -1)[idx, :]
+    feature = feature.view(batch_size, num_points, k, num_dims) 
+    x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)
+    
+    feature = torch.cat((feature-x, x), dim=3).permute(0, 3, 1, 2).contiguous()
+  
+    return feature      # (batch_size, 2*num_dims, num_points, k)
+
+
+class Transform_Net(nn.Module):
+    def __init__(self, args):
+        super(Transform_Net, self).__init__()
         self.args = args
-        self.k = args.k
-        self.use_batchnorm = args.use_batchnorm
-        self.inv_use_mean = args.inv_use_mean
+        self.k = 3
 
-        if args.combine_lin_nonlin:
-            self.conv1 = VNLinearLeakyReLU(2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv2 = VNLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv3 = VNLinearLeakyReLU(64 // 3 * 2, 128 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv4 = VNLinearLeakyReLU(128 // 3 * 2, 256 // 3, use_batchnorm=args.use_batchnorm)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(128)
+        self.bn3 = nn.BatchNorm1d(1024)
 
-            self.conv5 = VNLinearLeakyReLU(256 // 3 + 128 // 3 + 64 // 3 * 2, args.emb_dims // 3, dim=4,
-                                           share_nonlinearity=True, use_batchnorm=args.use_batchnorm)
-        else:
-            self.conv1 = VNLinearAndLeakyReLU(2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv2 = VNLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv3 = VNLinearAndLeakyReLU(64 // 3 * 2, 128 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv4 = VNLinearAndLeakyReLU(128 // 3 * 2, 256 // 3, use_batchnorm=args.use_batchnorm)
+        self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=False),
+                                   self.bn1,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv2 = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1, bias=False),
+                                   self.bn2,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv3 = nn.Sequential(nn.Conv1d(128, 1024, kernel_size=1, bias=False),
+                                   self.bn3,
+                                   nn.LeakyReLU(negative_slope=0.2))
 
-            self.conv5 = VNLinearAndLeakyReLU(256 // 3 + 128 // 3 + 64 // 3 * 2, args.emb_dims // 3, dim=4,
-                                              share_nonlinearity=True, use_batchnorm=args.use_batchnorm)
+        self.linear1 = nn.Linear(1024, 512, bias=False)
+        self.bn3 = nn.BatchNorm1d(512)
+        self.linear2 = nn.Linear(512, 256, bias=False)
+        self.bn4 = nn.BatchNorm1d(256)
 
-        if args.inv_use_mean:
-            self.std_feature = VNStdFeature(args.emb_dims // 3 * 2, dim=4, n_layers=args.inv_mlp_layers,
-                                            normalize_frame=False, use_batchnorm=args.use_batchnorm,
-                                            combine_lin_nonlin=args.combine_lin_nonlin)
-            self.linear1 = nn.Linear((args.emb_dims // 3) * 12, 512)
-        else:
-            self.std_feature = VNStdFeature(args.emb_dims // 3, dim=4, n_layers=args.inv_mlp_layers,
-                                            normalize_frame=False, use_batchnorm=args.use_batchnorm,
-                                            combine_lin_nonlin=args.combine_lin_nonlin)
-            self.linear1 = nn.Linear((args.emb_dims // 3) * 6, 512)
-
-        self.bn1 = nn.BatchNorm1d(512)
-        self.dp1 = nn.Dropout(p=args.dropout)
-        self.linear2 = nn.Linear(512, 256)
-        self.bn2 = nn.BatchNorm1d(256)
-        self.dp2 = nn.Dropout(p=args.dropout)
-        self.linear3 = nn.Linear(256, output_channels)
-
-        if args.pooling == 'max':
-            self.pool1 = VNMaxPool(64 // 3)
-            self.pool2 = VNMaxPool(64 // 3)
-            self.pool3 = VNMaxPool(128 // 3)
-            self.pool4 = VNMaxPool(256 // 3)
-        elif args.pooling == 'mean':
-            self.pool1 = mean_pool
-            self.pool2 = mean_pool
-            self.pool3 = mean_pool
-            self.pool4 = mean_pool
+        self.transform = nn.Linear(256, 3*3)
+        init.constant_(self.transform.weight, 0)
+        init.eye_(self.transform.bias.view(3, 3))
 
     def forward(self, x):
         batch_size = x.size(0)
-        x = x.unsqueeze(1)
-        x = get_graph_feature(x, k=self.k)
-        x = self.conv1(x)
-        x1 = self.pool1(x)
 
-        x = get_graph_feature(x1, k=self.k)
-        x = self.conv2(x)
-        x2 = self.pool2(x)
+        x = self.conv1(x)                       # (batch_size, 3*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x = self.conv2(x)                       # (batch_size, 64, num_points, k) -> (batch_size, 128, num_points, k)
+        x = x.max(dim=-1, keepdim=False)[0]     # (batch_size, 128, num_points, k) -> (batch_size, 128, num_points)
 
-        x = get_graph_feature(x2, k=self.k)
-        x = self.conv3(x)
-        x3 = self.pool3(x)
+        x = self.conv3(x)                       # (batch_size, 128, num_points) -> (batch_size, 1024, num_points)
+        x = x.max(dim=-1, keepdim=False)[0]     # (batch_size, 1024, num_points) -> (batch_size, 1024)
 
-        x = get_graph_feature(x3, k=self.k)
-        x = self.conv4(x)
-        x4 = self.pool4(x)
+        x = F.leaky_relu(self.bn3(self.linear1(x)), negative_slope=0.2)     # (batch_size, 1024) -> (batch_size, 512)
+        x = F.leaky_relu(self.bn4(self.linear2(x)), negative_slope=0.2)     # (batch_size, 512) -> (batch_size, 256)
 
-        x = torch.cat((x1, x2, x3, x4), dim=1)
-        x = self.conv5(x)
+        x = self.transform(x)                   # (batch_size, 256) -> (batch_size, 3*3)
+        x = x.view(batch_size, 3, 3)            # (batch_size, 3*3) -> (batch_size, 3, 3)
 
-        num_points = x.size(-1)
-        if self.inv_use_mean:
-            x_mean = x.mean(dim=-1, keepdim=True).expand(x.size())
-            x = torch.cat((x, x_mean), 1)
-        x, z0 = self.std_feature(x)
-        x = x.view(batch_size, -1, num_points)
-
-        x1 = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
-        x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)
-        x = torch.cat((x1, x2), 1)
-
-        x = F.leaky_relu(self.bn1(self.linear1(x)), negative_slope=0.2)
-        x = self.dp1(x)
-        x = F.leaky_relu(self.bn2(self.linear2(x)), negative_slope=0.2)
-        x = self.dp2(x)
-        x = self.linear3(x)
         return x
 
 
-class EQCNN_partseg(nn.Module):
+class DGCNN(nn.Module):
     def __init__(self, args, seg_num_all):
-        super(EQCNN_partseg, self).__init__()
+        super(DGCNN, self).__init__()
+        self.args = args
+        self.seg_num_all = seg_num_all
+        self.k = args.k
+        self.transform_net = Transform_Net(args)
+
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.bn3 = nn.BatchNorm2d(64)
+        self.bn4 = nn.BatchNorm2d(64)
+        self.bn5 = nn.BatchNorm2d(64)
+        self.bn6 = nn.BatchNorm1d(args.emb_dims)
+        self.bn7 = nn.BatchNorm1d(64)
+        self.bn8 = nn.BatchNorm1d(256)
+        self.bn9 = nn.BatchNorm1d(256)
+        self.bn10 = nn.BatchNorm1d(128)
+
+        self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=False),
+                                   self.bn1,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=False),
+                                   self.bn2,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv3 = nn.Sequential(nn.Conv2d(64 * 2, 64, kernel_size=1, bias=False),
+                                   self.bn3,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv4 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=False),
+                                   self.bn4,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv5 = nn.Sequential(nn.Conv2d(64 * 2, 64, kernel_size=1, bias=False),
+                                   self.bn5,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv6 = nn.Sequential(nn.Conv1d(192, args.emb_dims, kernel_size=1, bias=False),
+                                   self.bn6,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv7 = nn.Sequential(nn.Conv1d(16, 64, kernel_size=1, bias=False),
+                                   self.bn7,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv8 = nn.Sequential(nn.Conv1d(1280, 256, kernel_size=1, bias=False),
+                                   self.bn8,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.dp1 = nn.Dropout(p=args.dropout)
+        self.conv9 = nn.Sequential(nn.Conv1d(256, 256, kernel_size=1, bias=False),
+                                   self.bn9,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.dp2 = nn.Dropout(p=args.dropout)
+        self.conv10 = nn.Sequential(nn.Conv1d(256, 128, kernel_size=1, bias=False),
+                                    self.bn10,
+                                    nn.LeakyReLU(negative_slope=0.2))
+        self.conv11 = nn.Conv1d(128, self.seg_num_all, kernel_size=1, bias=False)
+
+    def forward(self, x, l):
+        batch_size = x.size(0)
+        num_points = x.size(2)
+
+        x0 = dgcnn_get_graph_feature(x, k=self.k)  # (batch_size, 3, num_points) -> (batch_size, 3*2, num_points, k)
+        t = self.transform_net(x0)  # (batch_size, 3, 3)
+        x = x.transpose(2, 1)  # (batch_size, 3, num_points) -> (batch_size, num_points, 3)
+        x = torch.bmm(x, t)  # (batch_size, num_points, 3) * (batch_size, 3, 3) -> (batch_size, num_points, 3)
+        x = x.transpose(2, 1)  # (batch_size, num_points, 3) -> (batch_size, 3, num_points)
+
+        x = dgcnn_get_graph_feature(x, k=self.k)  # (batch_size, 3, num_points) -> (batch_size, 3*2, num_points, k)
+        x = self.conv1(x)  # (batch_size, 3*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x = self.conv2(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
+        x1 = x.max(dim=-1, keepdim=False)[0]  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
+
+        x = dgcnn_get_graph_feature(x1, k=self.k)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
+        x = self.conv3(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x = self.conv4(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
+        x2 = x.max(dim=-1, keepdim=False)[0]  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
+
+        x = dgcnn_get_graph_feature(x2, k=self.k)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
+        x = self.conv5(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x3 = x.max(dim=-1, keepdim=False)[0]  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
+
+        x = torch.cat((x1, x2, x3), dim=1)  # (batch_size, 64*3, num_points)
+
+        x = self.conv6(x)  # (batch_size, 64*3, num_points) -> (batch_size, emb_dims, num_points)
+        x = x.max(dim=-1, keepdim=True)[0]  # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims, 1)
+
+        l = l.view(batch_size, -1, 1)  # (batch_size, num_categoties, 1)
+        l = self.conv7(l)  # (batch_size, num_categoties, 1) -> (batch_size, 64, 1)
+
+        x = torch.cat((x, l), dim=1)  # (batch_size, 1088, 1)
+        x = x.repeat(1, 1, num_points)  # (batch_size, 1088, num_points)
+
+        x = torch.cat((x, x1, x2, x3), dim=1)  # (batch_size, 1088+64*3, num_points)
+
+        x = self.conv8(x)  # (batch_size, 1088+64*3, num_points) -> (batch_size, 256, num_points)
+        x = self.dp1(x)
+        x = self.conv9(x)  # (batch_size, 256, num_points) -> (batch_size, 256, num_points)
+        x = self.dp2(x)
+        x = self.conv10(x)  # (batch_size, 256, num_points) -> (batch_size, 128, num_points)
+        x = self.conv11(x)  # (batch_size, 256, num_points) -> (batch_size, seg_num_all, num_points)
+
+        return x
+
+
+class VNN(nn.Module):
+    def __init__(self, args, seg_num_all):
+        super(VNN, self).__init__()
         self.args = args
         self.seg_num_all = seg_num_all
         self.k = args.k
@@ -1195,702 +1224,9 @@ class EQCNN_partseg(nn.Module):
         return x
 
 
-def kd_mean_pool(x, pool_size):
-    r = len(list(x.size()))
-    if r == 4:
-        x = x.view(x.size(0), x.size(1), x.size(2), -1, pool_size)
-    if r == 3:
-        x = x.view(x.size(0), x.size(1), -1, pool_size)
-    return x.mean(dim=-1, keepdim=False)
-
-
-def sampled_get_graph_feature(x, y, k=20, idx=None, x_coord_src=None, x_coord_tar=None, use_x_coord=False):
-    batch_size = x.size(0)
-    num_points_src = x.size(3)
-    num_points_tar = y.size(3)
-    x = x.view(batch_size, -1, num_points_src)
-    y = y.view(batch_size, -1, num_points_tar)
-    if idx is None:
-        if not use_x_coord:  # dynamic knn graph
-            idx = sampled_knn(x, y, k=k)  # (batch_size, num_points_tar, k)
-        else:  # fixed knn graph with input point coordinates
-            x_coord_src = x_coord_src.view(batch_size, -1, num_points_src)
-            x_coord_tar = x_coord_tar.view(batch_size, -1, num_points_tar)
-            # if we just do idx = knn(x_coord, k=k), we get nan loss
-            idx = sampled_knn(x_coord_src, x_coord_tar, k=k)
-
-    device = torch.device('cuda')
-
-    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points_src  # (batch_size)
-
-    idx = idx + idx_base
-
-    idx = idx.view(-1)  # (batch_size * num_points_tar * k)
-
-    _, num_dims, _ = x.size()
-    num_dims = num_dims // 3
-
-    x = x.transpose(2, 1).contiguous()  # (batch_size, num_points_src, E * 3)
-    y = y.transpose(2, 1).contiguous()  # (batch_size, num_points_tar, E * 3)
-    feature = x.view(batch_size * num_points_src, -1)[idx, :]  # (batch_size * num_points_tar * k, E * 3)
-    feature = feature.view(batch_size, num_points_tar, k, num_dims, 3)  # (batch_size, num_points_tar, k, E, 3)
-    y = y.view(batch_size, num_points_tar, 1, num_dims, 3).repeat(1, 1, k, 1,
-                                                                  1)  # (batch_size, num_points_tar, k, E, 3)
-
-    feature = torch.cat((feature - y, y), dim=3).permute(0, 3, 4, 1,
-                                                         2).contiguous()  # (batch_size, num_points_tar, k, E, 3)
-
-    return feature
-
-
-def sampled_knn(x, y, k):
-    # x: B x E * 3 x C_x
-    # y: B x E * 3 x C_y
-    # distance between (x1, x2, x3) and (y1, y2, y3) is 
-    # sqrt((x1 - y1) ** 2 + (x2 - y2) ** 2 + (x3 - y3) ** 2) = 
-    # sqrt((x1 ** 2 + x2 ** 2 + x3 ** 2) + (y1 ** 2 + y2 ** 2 + y3 ** 2) -2 (x1y1 + x2y2 + x3y3)) =
-    # Since we only care about ordering
-    # (x1 ** 2 + x2 ** 2 + x3 ** 2) + (y1 ** 2 + y2 ** 2 + y3 ** 2) -2 (x1y1 + x2y2 + x3y3)
-    
-    # calculate -2 (x1y1 + x2y2 + x3y3) term
-    inner = -2*torch.matmul(y.transpose(2, 1), x) # B x C_y x C_x
-
-    # calculate (x1 ** 2 + x2 ** 2 + x3 ** 2) terms
-    xx = torch.sum(x**2, dim=1, keepdim=True) # B x 1 x C_x
-    # calculate (y1 ** 2 + y2 ** 2 + y3 ** 2) terms
-    yy = torch.sum(y ** 2, dim=1, keepdim=True) # B x 1 x C_y
-
-    # negates distance for topk function
-    pairwise_distance = -xx - inner - yy.transpose(2, 1) # B x C_y x C_x
- 
-    # gets topk indices
-    idx = pairwise_distance.topk(k=k, dim=-1)[1]   # B x C_y x K
-    return idx
-
-
-def sampled_get_graph_feature_channels(x, y, k=20, idx=None, x_coord_src=None, x_coord_tar=None, use_x_coord=False):
-    batch_size = x.size(0)
-    num_points_src = x.size(3)
-    num_points_tar = y.size(3)
-    x = x.view(batch_size, -1, num_points_src)
-    y = y.view(batch_size, -1, num_points_tar)
-    if idx is None:
-        if not use_x_coord:  # dynamic knn graph
-            idx = sampled_knn(x, y, k=k)  # (batch_size, num_points_tar, k)
-        else:  # fixed knn graph with input point coordinates
-            x_coord_src = x_coord_src.view(batch_size, -1, num_points_src)
-            x_coord_tar = x_coord_tar.view(batch_size, -1, num_points_tar)
-            # if we just do idx = knn(x_coord, k=k), we get nan loss
-            idx = sampled_knn(x_coord_src, x_coord_tar, k=k)
-
-    device = torch.device('cuda')
-
-    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points_src  # (batch_size)
-
-    idx = idx + idx_base
-
-    idx = idx.view(-1)  # (batch_size * num_points_tar * k)
-
-    _, num_dims, _ = x.size()
-    num_dims = num_dims // 3
-
-    x = x.transpose(2, 1).contiguous()  # (batch_size, num_points_src, E * 3)
-    y = y.transpose(2, 1).contiguous()  # (batch_size, num_points_tar, E * 3)
-    feature = x.view(batch_size * num_points_src, -1)[idx, :]  # (batch_size * num_points_tar * k, E * 3)
-    feature = feature.view(batch_size, num_points_tar, k, num_dims, 3)  # (batch_size, num_points_tar, k, E, 3)
-
-    points = y.view(batch_size, num_points_tar, 1, num_dims, 3).permute(0, 3, 4, 1, 2).contiguous()  # B x E x 3 x C x 1
-    y = y.view(batch_size, num_points_tar, 1, num_dims, 3).repeat(1, 1, k, 1,
-                                                                  1)  # (batch_size, num_points_tar, k, E, 3)
-    neighbors = (feature - y).permute(0, 3, 4, 1, 2).contiguous()  # B x E x 3 x C x k
-
-    return points, neighbors
-
-
-class EQCNN_sampling_VNN(nn.Module):
+class Shell_Only(nn.Module):
     def __init__(self, args, seg_num_all):
-        super(EQCNN_sampling_VNN, self).__init__()
-        self.args = args
-        self.seg_num_all = seg_num_all
-        self.k = args.k
-        self.use_batchnorm = args.use_batchnorm
-        self.inv_use_mean = args.inv_use_mean
-        self.use_embedding = args.use_embedding
-
-        self.embedding = VNEmbedding()
-        self.bn7 = nn.BatchNorm1d(64)
-        self.bn8 = nn.BatchNorm1d(256)
-        self.bn9 = nn.BatchNorm1d(256)
-        self.bn10 = nn.BatchNorm1d(128)
-
-        if args.use_embedding:
-            init_dim = 4
-        else:
-            init_dim = 2
-
-        if args.combine_lin_nonlin:
-            if args.reflection_variant:
-                if args.b_only:
-                    self.conv1 = VNReflectionLinearLeakyReLUBOnly(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv2 = VNReflectionLinearLeakyReLUBOnly(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv3 = VNReflectionLinearLeakyReLUBOnly(64 // 3 * 2, 64 // 3,
-                                                                  use_batchnorm=args.use_batchnorm)
-                    self.conv4 = VNReflectionLinearLeakyReLUBOnly(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv5 = VNReflectionLinearLeakyReLUBOnly(64 // 3 * 2, 64 // 3,
-                                                                  use_batchnorm=args.use_batchnorm)
-                else:
-                    self.conv1 = VNReflectionLinearLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv2 = VNReflectionLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv3 = VNReflectionLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv4 = VNReflectionLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv5 = VNReflectionLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            else:
-                self.conv1 = VNLinearLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv2 = VNLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv3 = VNLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv4 = VNLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv5 = VNLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-        else:
-            if args.reflection_variant:
-                self.conv1 = VNReflectionLinearAndLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv2 = VNReflectionLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv3 = VNReflectionLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv4 = VNReflectionLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv5 = VNReflectionLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            else:
-                self.conv1 = VNLinearAndLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv2 = VNLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv3 = VNLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv4 = VNLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv5 = VNLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-
-        if args.pooling == 'max':
-            self.pool1 = VNMaxPool(64 // 3)
-            self.pool2 = VNMaxPool(64 // 3)
-            self.pool3 = VNMaxPool(64 // 3)
-        elif args.pooling == 'mean':
-            self.pool1 = mean_pool
-            self.pool2 = mean_pool
-            self.pool3 = mean_pool
-
-        if args.reflection_variant:
-            if args.b_only:
-                self.conv6 = VNReflectionLinearLeakyReLUBOnly(64 // 3 * 3, args.emb_dims // 3, dim=4,
-                                                              share_nonlinearity=True, use_batchnorm=args.use_batchnorm)
-            else:
-                self.conv6 = VNReflectionLinearLeakyReLU(64 // 3 * 3, args.emb_dims // 3, dim=4,
-                                                         share_nonlinearity=True, use_batchnorm=args.use_batchnorm)
-        else:
-            self.conv6 = VNLinearLeakyReLU(64 // 3 * 3, args.emb_dims // 3, dim=4, share_nonlinearity=True,
-                                           use_batchnorm=args.use_batchnorm)
-        if args.inv_use_mean:
-            self.std_feature = VNStdFeature(args.emb_dims // 3 * 2, dim=4, n_layers=args.inv_mlp_layers,
-                                            normalize_frame=False, use_batchnorm=args.use_batchnorm,
-                                            combine_lin_nonlin=args.combine_lin_nonlin,
-                                            reflection_variant=args.reflection_variant, b_only=args.b_only)
-            self.conv8 = nn.Sequential(nn.Conv1d(2488, 256, kernel_size=1, bias=False),
-                                       self.bn8,
-                                       nn.LeakyReLU(negative_slope=0.2))
-        else:
-            self.std_feature = VNStdFeature(args.emb_dims // 3, dim=4, n_layers=args.inv_mlp_layers,
-                                            normalize_frame=False, use_batchnorm=args.use_batchnorm,
-                                            combine_lin_nonlin=args.combine_lin_nonlin,
-                                            reflection_variant=args.reflection_variant, b_only=args.b_only)
-            self.conv8 = nn.Sequential(nn.Conv1d(2488 - args.emb_dims // 3 * 3, 256, kernel_size=1, bias=False),
-                                       self.bn8,
-                                       nn.LeakyReLU(negative_slope=0.2))
-
-        self.conv7 = nn.Sequential(nn.Conv1d(16, 64, kernel_size=1, bias=False),
-                                   self.bn7,
-                                   nn.LeakyReLU(negative_slope=0.2))
-
-        self.dp1 = nn.Dropout(p=args.dropout)
-        self.conv9 = nn.Sequential(nn.Conv1d(256, 256, kernel_size=1, bias=False),
-                                   self.bn9,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.dp2 = nn.Dropout(p=args.dropout)
-        self.conv10 = nn.Sequential(nn.Conv1d(256, 128, kernel_size=1, bias=False),
-                                    self.bn10,
-                                    nn.LeakyReLU(negative_slope=0.2))
-        self.conv11 = nn.Conv1d(128, self.seg_num_all, kernel_size=1, bias=False)
-
-    def forward(self, x_in, l):
-        batch_size = x_in.size(0)
-
-        x = x_in.unsqueeze(1)
-        x_kd = kd_mean_pool(x, 1)  # B x 1 x 3 x C
-
-        if self.use_embedding:
-            x = self.embedding(x_kd)  # (batch_size, 3, num_points) -> (batch_size, 3*init_dim, num_points, 1)
-        else:
-            x = sampled_get_graph_feature(x, x_kd, k=self.k)  # (batch_size, 3, num_points) -> (batch_size, 3*init_dim, num_points, 40)
-        x = self.conv1(x)  # (batch_size, 3*4, num_points, ...) -> (batch_size, 64, num_points, ...)
-        x = self.conv2(x)  # (batch_size, 64, num_points, ...) -> (batch_size, 64, num_points, ...)
-        x1 = self.pool1(x)  # (batch_size, 64, num_points, ...) -> (batch_size, 64, num_points)
-        x1_kd = kd_mean_pool(x1, 2)  # B x E / 3 x 3 x C / 2
-
-        x = sampled_get_graph_feature(x1, x1_kd,
-                                      k=self.k)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv3(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x = self.conv4(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
-        x2 = self.pool2(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-        x2_kd = kd_mean_pool(x2, 2)  # B x E / 3 x 3 x C / 4
-
-        x = sampled_get_graph_feature(x2, x2_kd,
-                                      k=self.k)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv5(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x3 = self.pool3(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-
-        x1_reduced = kd_mean_pool(x1, 8)  # B x E / 3 x 3 x C / 8
-        x2_reduced = kd_mean_pool(x2, 4)  # B x E / 3 x 3 x C / 8
-        x3_reduced = kd_mean_pool(x3, 2)  # B x E / 3 x 3 x C / 8
-
-        x123 = torch.cat((x1_reduced, x2_reduced, x3_reduced), dim=1)  # (batch_size, 64*3, num_points)
-
-        x = self.conv6(x123)  # (batch_size, 64*3, num_points) -> (batch_size, emb_dims, num_points)
-        x_mean = x.mean(dim=-1, keepdim=True).expand(x.size())
-        x = torch.cat((x, x_mean), 1)
-        x, z0 = self.std_feature(x)
-
-        x = torch.repeat_interleave(x, 2, dim=3)  # B x 2E' x 3 x C / 4
-        x = torch.cat((x, x3), dim=1)  # B x 2E' + E / 3 x 3 x C / 4
-        x = torch.repeat_interleave(x, 2, dim=3)  # B x 2E' + E / 3 x 3 x C / 2
-        x = torch.cat((x, x2), dim=1)  # B x 2E' + 2 * E / 3 x 3 x C / 2
-        x = torch.repeat_interleave(x, 2, dim=3)  # B x 2E' + 2 * E / 3 x 3 x C
-        x = torch.cat((x, x1), dim=1)  # B x 2E' + E x 3 x C
-
-        x123 = torch.repeat_interleave(x123, 8, dim=3)  # B x E x 3 x C
-        z0 = torch.repeat_interleave(z0, 8, dim=3)  # 1 x 3 x 3 x C
-
-        num_subsampled_points = x.size(3)
-        x123 = torch.einsum('bijm,bjkm->bikm', x123, z0).view(batch_size, -1, num_subsampled_points)
-        x = x.view(batch_size, -1, num_subsampled_points)
-        x = x.max(dim=-1, keepdim=True)[0]  # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims, 1)
-
-        l = l.view(batch_size, -1, 1)  # (batch_size, num_categoties, 1)
-        l = self.conv7(l)  # (batch_size, num_categoties, 1) -> (batch_size, 64, 1)
-
-        x = torch.cat((x, l), dim=1)  # (batch_size, 1088, 1)
-        x = x.repeat(1, 1, num_subsampled_points)  # (batch_size, 1088, num_points)
-
-        x = torch.cat((x, x123), dim=1)  # (batch_size, 1088+64*3, num_points)
-
-        x = self.conv8(x)  # (batch_size, 1088+64*3, num_points) -> (batch_size, 256, num_points)
-        x = self.dp1(x)
-        x = self.conv9(x)  # (batch_size, 256, num_points) -> (batch_size, 256, num_points)
-        x = self.dp2(x)
-        x = self.conv10(x)  # (batch_size, 256, num_points) -> (batch_size, 128, num_points)
-        pred_sampled_seg = self.conv11(x)  # (batch_size, 128, num_points) -> (batch_size, seg_num_all, num_points)
-
-        return pred_sampled_seg
-
-
-class EQCNN_channels_VNN(nn.Module):
-    def __init__(self, args, seg_num_all):
-        super(EQCNN_channels_VNN, self).__init__()
-        self.args = args
-        self.seg_num_all = seg_num_all
-        self.k = args.k
-        self.use_batchnorm = args.use_batchnorm
-        self.inv_use_mean = args.inv_use_mean
-        self.num_shells = args.num_shells
-
-        self.embedding = VNEmbedding()
-        self.bn7 = nn.BatchNorm1d(64)
-        self.bn8 = nn.BatchNorm1d(256)
-        self.bn9 = nn.BatchNorm1d(256)
-        self.bn10 = nn.BatchNorm1d(128)
-
-        init_dim = 4
-
-        if args.combine_lin_nonlin:
-            if args.reflection_variant:
-                if args.b_only:
-                    self.conv1 = VNReflectionLinearLeakyReLUBOnly(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv2 = VNReflectionLinearLeakyReLUBOnly(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv3 = VNReflectionLinearLeakyReLUBOnly(64 // 3 * 2, 64 // 3,
-                                                                  use_batchnorm=args.use_batchnorm)
-                    self.conv4 = VNReflectionLinearLeakyReLUBOnly(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv5 = VNReflectionLinearLeakyReLUBOnly(64 // 3 * 2, 64 // 3,
-                                                                  use_batchnorm=args.use_batchnorm)
-                else:
-                    self.conv1 = VNReflectionLinearLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv2 = VNReflectionLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv3 = VNReflectionLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv4 = VNReflectionLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                    self.conv5 = VNReflectionLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            else:
-                self.conv1 = VNLinearLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv2 = VNLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv3 = VNLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv4 = VNLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv5 = VNLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-        else:
-            if args.reflection_variant:
-                self.conv1 = VNReflectionLinearAndLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv2 = VNReflectionLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv3 = VNReflectionLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv4 = VNReflectionLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv5 = VNReflectionLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            else:
-                self.conv1 = VNLinearAndLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv2 = VNLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv3 = VNLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv4 = VNLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-                self.conv5 = VNLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-
-        if args.pooling == 'max':
-            self.pool1 = VNMaxPool(64 // 3)
-            self.pool2 = VNMaxPool(64 // 3)
-            self.pool3 = VNMaxPool(64 // 3)
-        elif args.pooling == 'mean':
-            self.pool1 = mean_pool
-            self.pool2 = mean_pool
-            self.pool3 = mean_pool
-
-        if args.reflection_variant:
-            if args.b_only:
-                self.conv6 = VNReflectionLinearLeakyReLUBOnly(64 // 3 * 3, args.emb_dims // 3, dim=4,
-                                                              share_nonlinearity=True, use_batchnorm=args.use_batchnorm)
-            else:
-                self.conv6 = VNReflectionLinearLeakyReLU(64 // 3 * 3, args.emb_dims // 3, dim=4,
-                                                         share_nonlinearity=True, use_batchnorm=args.use_batchnorm)
-        else:
-            self.conv6 = VNLinearLeakyReLU(64 // 3 * 3, args.emb_dims // 3, dim=4, share_nonlinearity=True,
-                                           use_batchnorm=args.use_batchnorm)
-        if args.inv_use_mean:
-            self.std_feature = VNStdFeature(args.emb_dims // 3 * 2, dim=4, n_layers=args.inv_mlp_layers,
-                                            normalize_frame=False, use_batchnorm=args.use_batchnorm,
-                                            combine_lin_nonlin=args.combine_lin_nonlin,
-                                            reflection_variant=args.reflection_variant, b_only=args.b_only)
-            self.conv8 = nn.Sequential(nn.Conv1d(2488, 256, kernel_size=1, bias=False),
-                                       self.bn8,
-                                       nn.LeakyReLU(negative_slope=0.2))
-        else:
-            self.std_feature = VNStdFeature(args.emb_dims // 3, dim=4, n_layers=args.inv_mlp_layers,
-                                            normalize_frame=False, use_batchnorm=args.use_batchnorm,
-                                            combine_lin_nonlin=args.combine_lin_nonlin,
-                                            reflection_variant=args.reflection_variant, b_only=args.b_only)
-            self.conv8 = nn.Sequential(nn.Conv1d(2488 - args.emb_dims // 3 * 3, 256, kernel_size=1, bias=False),
-                                       self.bn8,
-                                       nn.LeakyReLU(negative_slope=0.2))
-
-        self.conv7 = nn.Sequential(nn.Conv1d(16, 64, kernel_size=1, bias=False),
-                                   self.bn7,
-                                   nn.LeakyReLU(negative_slope=0.2))
-
-        self.dp1 = nn.Dropout(p=args.dropout)
-        self.conv9 = nn.Sequential(nn.Conv1d(256, 256, kernel_size=1, bias=False),
-                                   self.bn9,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.dp2 = nn.Dropout(p=args.dropout)
-        self.conv10 = nn.Sequential(nn.Conv1d(256, 128, kernel_size=1, bias=False),
-                                    self.bn10,
-                                    nn.LeakyReLU(negative_slope=0.2))
-        self.conv11 = nn.Conv1d(128, self.seg_num_all, kernel_size=1, bias=False)
-
-    def forward(self, x_in, l):
-        batch_size = x_in.size(0)
-        num_points = x_in.size(2)
-
-        x = x_in.unsqueeze(1)
-        x_kd = kd_mean_pool(x, 1)  # B x 1 x 3 x C
-
-        points, neighbors = sampled_get_graph_feature_channels(x, x_kd, k=self.k)  # (batch_size, 3, num_points) -> (batch_size, 3*init_dim, num_points, 40)
-        
-        rot_cross, rot_shell = orientation_embd(x_in.permute(0, 2, 1), num_points // self.num_shells, self.num_shells)  # B x C * N x 3
-        B, _, _, C, _ = points.size()
-        N = (self.num_shells * (self.num_shells - 1)) // 2
-        rot_cross = rot_cross.view(B, 1, C, N, 3).permute(0, 1, 4, 2, 3)  # B x E=1 x 3 x C x N
-        rot_shell = rot_shell.view(B, 1, C, N, 3).permute(0, 1, 4, 2, 3)  # B x E=1 x 3 x C x N
-
-        points = points.repeat(1, 1, 1, 1, self.k * N)
-        neighbors = neighbors.repeat(1, 1, 1, 1, N)
-        rot_shell = rot_shell.repeat(1, 1, 1, 1, self.k)
-        rot_cross = rot_cross.repeat(1, 1, 1, 1, self.k)
-
-        x = torch.cat((points, neighbors, rot_shell, rot_cross), 1)  # B x E=4 x 3 x C x K * N
-
-        x = self.conv1(x)  # (batch_size, 3*4, num_points, ...) -> (batch_size, 64, num_points, ...)
-        x = self.conv2(x)  # (batch_size, 64, num_points, ...) -> (batch_size, 64, num_points, ...)
-        x1 = self.pool1(x)  # (batch_size, 64, num_points, ...) -> (batch_size, 64, num_points)
-        x1_kd = kd_mean_pool(x1, 2)  # B x E / 3 x 3 x C / 2
-
-        x = sampled_get_graph_feature(x1, x1_kd,
-                                      k=self.k)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv3(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x = self.conv4(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
-        x2 = self.pool2(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-        x2_kd = kd_mean_pool(x2, 2)  # B x E / 3 x 3 x C / 4
-
-        x = sampled_get_graph_feature(x2, x2_kd,
-                                      k=self.k)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv5(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x3 = self.pool3(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-
-        x1_reduced = kd_mean_pool(x1, 8)  # B x E / 3 x 3 x C / 8
-        x2_reduced = kd_mean_pool(x2, 4)  # B x E / 3 x 3 x C / 8
-        x3_reduced = kd_mean_pool(x3, 2)  # B x E / 3 x 3 x C / 8
-
-        x123 = torch.cat((x1_reduced, x2_reduced, x3_reduced), dim=1)  # (batch_size, 64*3, num_points)
-
-        x = self.conv6(x123)  # (batch_size, 64*3, num_points) -> (batch_size, emb_dims, num_points)
-        x_mean = x.mean(dim=-1, keepdim=True).expand(x.size())
-        x = torch.cat((x, x_mean), 1)
-        x, z0 = self.std_feature(x)
-
-        x = torch.repeat_interleave(x, 2, dim=3)  # B x 2E' x 3 x C / 4
-        x = torch.cat((x, x3), dim=1)  # B x 2E' + E / 3 x 3 x C / 4
-        x = torch.repeat_interleave(x, 2, dim=3)  # B x 2E' + E / 3 x 3 x C / 2
-        x = torch.cat((x, x2), dim=1)  # B x 2E' + 2 * E / 3 x 3 x C / 2
-        x = torch.repeat_interleave(x, 2, dim=3)  # B x 2E' + 2 * E / 3 x 3 x C
-        x = torch.cat((x, x1), dim=1)  # B x 2E' + E x 3 x C
-
-        x123 = torch.repeat_interleave(x123, 8, dim=3)  # B x E x 3 x C
-        z0 = torch.repeat_interleave(z0, 8, dim=3)  # 1 x 3 x 3 x C
-
-        num_subsampled_points = x.size(3)
-        x123 = torch.einsum('bijm,bjkm->bikm', x123, z0).view(batch_size, -1, num_subsampled_points)
-        x = x.view(batch_size, -1, num_subsampled_points)
-        x = x.max(dim=-1, keepdim=True)[0]  # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims, 1)
-
-        l = l.view(batch_size, -1, 1)  # (batch_size, num_categoties, 1)
-        l = self.conv7(l)  # (batch_size, num_categoties, 1) -> (batch_size, 64, 1)
-
-        x = torch.cat((x, l), dim=1)  # (batch_size, 1088, 1)
-        x = x.repeat(1, 1, num_subsampled_points)  # (batch_size, 1088, num_points)
-
-        x = torch.cat((x, x123), dim=1)  # (batch_size, 1088+64*3, num_points)
-
-        x = self.conv8(x)  # (batch_size, 1088+64*3, num_points) -> (batch_size, 256, num_points)
-        x = self.dp1(x)
-        x = self.conv9(x)  # (batch_size, 256, num_points) -> (batch_size, 256, num_points)
-        x = self.dp2(x)
-        x = self.conv10(x)  # (batch_size, 256, num_points) -> (batch_size, 128, num_points)
-        pred_sampled_seg = self.conv11(x)  # (batch_size, 128, num_points) -> (batch_size, seg_num_all, num_points)
-
-        return pred_sampled_seg
-
-
-class EQCNN_regress(nn.Module):
-    def __init__(self, args, seg_num_all, b_only=False):
-        super(EQCNN_regress, self).__init__()
-        self.args = args
-        self.seg_num_all = seg_num_all
-        self.k = args.k
-        self.use_batchnorm = args.use_batchnorm
-        self.inv_use_mean = args.inv_use_mean
-        self.include_x_coord = args.include_x_coord
-        self.use_x_coord = args.use_x_coord
-
-        self.embedding = VNEmbedding()
-        self.bn7 = nn.BatchNorm1d(64)
-        self.bn8 = nn.BatchNorm1d(256)
-        self.bn9 = nn.BatchNorm1d(256)
-        self.bn10 = nn.BatchNorm1d(128)
-
-        init_dim = 2
-
-        if args.combine_lin_nonlin:
-            self.conv1 = VNLinearLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv2 = VNLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv3 = VNLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv4 = VNLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv5 = VNLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-        else:
-            self.conv1 = VNLinearAndLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv2 = VNLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv3 = VNLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv4 = VNLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv5 = VNLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-
-        if args.pooling == 'max':
-            self.pool1 = VNMaxPool(64 // 3)
-            self.pool2 = VNMaxPool(64 // 3)
-            self.pool3 = VNMaxPool(64 // 3)
-        elif args.pooling == 'mean':
-            self.pool1 = mean_pool
-            self.pool2 = mean_pool
-            self.pool3 = mean_pool
-
-        self.conv6 = VNLinearLeakyReLU(64 // 3 * 3, args.emb_dims // 3, dim=4, share_nonlinearity=True,
-                                       use_batchnorm=args.use_batchnorm)
-        if args.inv_use_mean:
-            self.std_feature = VNStdFeature(args.emb_dims // 3 * 2, dim=4, n_layers=args.inv_mlp_layers,
-                                            normalize_frame=False, use_batchnorm=args.use_batchnorm,
-                                            combine_lin_nonlin=args.combine_lin_nonlin, reflection_variant=False,
-                                            b_only=b_only)
-            self.conv8 = nn.Sequential(nn.Conv1d(2299, 256, kernel_size=1, bias=False),
-                                       self.bn8,
-                                       nn.LeakyReLU(negative_slope=0.2))
-        else:
-            self.std_feature = VNStdFeature(args.emb_dims // 3, dim=4, n_layers=args.inv_mlp_layers,
-                                            normalize_frame=False, use_batchnorm=args.use_batchnorm,
-                                            combine_lin_nonlin=args.combine_lin_nonlin, reflection_variant=False,
-                                            b_only=b_only)
-            self.conv8 = nn.Sequential(nn.Conv1d(2299 - args.emb_dims // 3 * 3, 256, kernel_size=1, bias=False),
-                                       self.bn8,
-                                       nn.LeakyReLU(negative_slope=0.2))
-
-        self.conv7 = nn.Sequential(nn.Conv1d(16, 64, kernel_size=1, bias=False),
-                                   self.bn7,
-                                   nn.LeakyReLU(negative_slope=0.2))
-
-        self.dp1 = nn.Dropout(p=args.dropout)
-        self.conv9 = nn.Sequential(nn.Conv1d(256, 256, kernel_size=1, bias=False),
-                                   self.bn9,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.dp2 = nn.Dropout(p=args.dropout)
-        self.conv10 = nn.Sequential(nn.Conv1d(256, 128, kernel_size=1, bias=False),
-                                    self.bn10,
-                                    nn.LeakyReLU(negative_slope=0.2))
-        self.conv11 = nn.Conv1d(128, self.seg_num_all, kernel_size=1, bias=False)
-        self.regression = VNRegression(self.seg_num_all)
-
-    def forward(self, x_in, l, device):
-        batch_size = x_in.size(0)
-        num_points = x_in.size(2)
-
-        x = x_in.unsqueeze(1)
-        if self.include_x_coord:
-            x_coord = x
-        else:
-            x_coord = None
-
-        x = get_graph_feature(x, k=self.k, x_coord=x_coord,
-                              use_x_coord=self.use_x_coord)  # (batch_size, 3, num_points) -> (batch_size, 3*init_dim, num_points, 40)
-        x = self.conv1(x)  # (batch_size, 3*4, num_points, ...) -> (batch_size, 64, num_points, ...)
-        x = self.conv2(x)  # (batch_size, 64, num_points, ...) -> (batch_size, 64, num_points, ...)
-        x1 = self.pool1(x)  # (batch_size, 64, num_points, ...) -> (batch_size, 64, num_points)
-
-        x = get_graph_feature(x1, k=self.k, x_coord=x_coord,
-                              use_x_coord=self.use_x_coord)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv3(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x = self.conv4(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
-        x2 = self.pool2(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-
-        x = get_graph_feature(x2, k=self.k, x_coord=x_coord,
-                              use_x_coord=self.use_x_coord)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv5(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x3 = self.pool3(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-
-        x123 = torch.cat((x1, x2, x3), dim=1)  # (batch_size, 64*3, num_points)
-
-        x = self.conv6(x123)  # (batch_size, 64*3, num_points) -> (batch_size, emb_dims, num_points)
-        x_mean = x.mean(dim=-1, keepdim=True).expand(x.size())
-        x = torch.cat((x, x_mean), 1)
-        x, z0 = self.std_feature(x)
-        x123 = torch.einsum('bijm,bjkm->bikm', x123, z0).view(batch_size, -1, num_points)
-        x = x.view(batch_size, -1, num_points)
-        x = x.max(dim=-1, keepdim=True)[0]  # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims, 1)
-
-        l = l.view(batch_size, -1, 1)  # (batch_size, num_categoties, 1)
-        l = self.conv7(l)  # (batch_size, num_categoties, 1) -> (batch_size, 64, 1)
-
-        x = torch.cat((x, l), dim=1)  # (batch_size, 1088, 1)
-        x = x.repeat(1, 1, num_points)  # (batch_size, 1088, num_points)
-
-        x = torch.cat((x, x123), dim=1)  # (batch_size, 1088+64*3, num_points)
-
-        x = self.conv8(x)  # (batch_size, 1088+64*3, num_points) -> (batch_size, 256, num_points)
-        x = self.dp1(x)
-        x = self.conv9(x)  # (batch_size, 256, num_points) -> (batch_size, 256, num_points)
-        x = self.dp2(x)
-        x = self.conv10(x)  # (batch_size, 256, num_points) -> (batch_size, 128, num_points)
-
-        seg_pred = self.conv11(x)  # (batch_size, 128, num_points) -> (batch_size, seg_num_all, num_points)
-        attention_weights = F.softmax(seg_pred, dim=1)
-        mu = vn_get_keypoints(attention_weights,
-                              x_in)  # (batch_size, seg_num_all, num_points) -> (batch_size, seg_num_all, 3)
-        r = self.regression(mu)
-        return seg_pred, attention_weights, mu, x_in, r
-
-
-class EQCNN_ref_frame(nn.Module):
-    def __init__(self, args, seg_num_all, b_only=False):
-        super(EQCNN_ref_frame, self).__init__()
-        self.args = args
-        self.seg_num_all = seg_num_all
-        self.k = args.k
-        self.use_batchnorm = args.use_batchnorm
-        self.inv_use_mean = args.inv_use_mean
-        self.include_x_coord = args.include_x_coord
-        self.use_x_coord = args.use_x_coord
-        self.emb_dims = args.emb_dims
-
-        self.embedding = VNEmbedding()
-        self.bn7 = nn.BatchNorm1d(64)
-        self.bn8 = nn.BatchNorm1d(256)
-        self.bn9 = nn.BatchNorm1d(256)
-        self.bn10 = nn.BatchNorm1d(128)
-
-        init_dim = 2
-
-        if args.combine_lin_nonlin:
-            self.conv1 = VNLinearLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv2 = VNLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv3 = VNLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv4 = VNLinearLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv5 = VNLinearLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-        else:
-            self.conv1 = VNLinearAndLeakyReLU(init_dim, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv2 = VNLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv3 = VNLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv4 = VNLinearAndLeakyReLU(64 // 3, 64 // 3, use_batchnorm=args.use_batchnorm)
-            self.conv5 = VNLinearAndLeakyReLU(64 // 3 * 2, 64 // 3, use_batchnorm=args.use_batchnorm)
-
-        if args.pooling == 'max':
-            self.pool1 = VNMaxPool(64 // 3)
-            self.pool2 = VNMaxPool(64 // 3)
-            self.pool3 = VNMaxPool(64 // 3)
-        elif args.pooling == 'mean':
-            self.pool1 = mean_pool
-            self.pool2 = mean_pool
-            self.pool3 = mean_pool
-
-        self.conv6 = VNLinearLeakyReLU(64 // 3 * 3, args.emb_dims // 3, dim=4, share_nonlinearity=True,
-                                       use_batchnorm=args.use_batchnorm)
-        self.conv7 = VNLinear(args.emb_dims // 3, 2)
-
-    def forward(self, x_in, l, device):
-        batch_size = x_in.size(0)
-        num_points = x_in.size(2)
-
-        x = x_in.unsqueeze(1)
-        if self.include_x_coord:
-            x_coord = x
-        else:
-            x_coord = None
-
-        x = get_graph_feature(x, k=self.k, x_coord=x_coord,
-                              use_x_coord=self.use_x_coord)  # (batch_size, 3, num_points) -> (batch_size, 3*init_dim, num_points, 40)
-        x = self.conv1(x)  # (batch_size, 3*4, num_points, ...) -> (batch_size, 64, num_points, ...)
-        x = self.conv2(x)  # (batch_size, 64, num_points, ...) -> (batch_size, 64, num_points, ...)
-        x1 = self.pool1(x)  # (batch_size, 64, num_points, ...) -> (batch_size, 64, num_points)
-
-        x = get_graph_feature(x1, k=self.k, x_coord=x_coord,
-                              use_x_coord=self.use_x_coord)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv3(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x = self.conv4(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
-        x2 = self.pool2(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-
-        x = get_graph_feature(x2, k=self.k, x_coord=x_coord,
-                              use_x_coord=self.use_x_coord)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv5(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x3 = self.pool3(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-
-        x123 = torch.cat((x1, x2, x3), dim=1)  # (batch_size, 64*3, num_points)
-
-        x = self.conv6(x123)  # (batch_size, 64*3, num_points) -> (batch_size, emb_dims, num_points)
-        xy = torch.mean(self.conv7(x), 3)  # (batch_size, 3, num_points) -> (batch_size, 2, 3)
-        z = torch.unsqueeze(torch.cross(xy[:, 0, :], xy[:, 1, :], dim=1), 1)  # B x 1 x 3
-        r = torch.cat((xy, z), dim=1)  # B x 3 x 3
-        return r
-
-
-class EQCNN_partseg_shell_channels(nn.Module):
-    def __init__(self, args, seg_num_all):
-        super(EQCNN_partseg_shell_channels, self).__init__()
+        super(Shell_Only, self).__init__()
         self.args = args
         self.seg_num_all = seg_num_all
         self.k = args.k
@@ -1900,7 +1236,7 @@ class EQCNN_partseg_shell_channels(nn.Module):
         self.num_points = args.num_points
         self.num_shells = args.num_shells
 
-        self.vnn_lin_1 = VNSimpleLinear(3, args.emb_dims//3)
+        self.vnn_lin_1 = VNSimpleLinear(3, args.emb_dims // 3)
         self.embedding = VNEmbedding()
         self.bn7 = nn.BatchNorm1d(64)
         self.bn8 = nn.BatchNorm1d(256)
@@ -2005,21 +1341,23 @@ class EQCNN_partseg_shell_channels(nn.Module):
         x = x_in.unsqueeze(1)
         x_coord = x
 
-        x_graph = get_graph_feature(x, k=self.k)  # (batch_size, 3, num_points) -> (batch_size, 3*init_dim, num_points, 40)
-        rot_cross, rot_embed = orientation_embd(x_in.permute(0, 2, 1), self.num_points // self.num_shells, self.num_shells) # B x C x 3
-        rot_cross = torch.sum(rot_cross, dim=1) # B x 3
-        rot_cross = rot_cross.unsqueeze(1).unsqueeze(-1).unsqueeze(-1) # B x 1 x 3 x 1 x 1
-        rot_cross = rot_cross.repeat(1, 1, 1, self.num_points, self.k) # B x 1 x 3 x C x K
-        x_graph = torch.cat((x_graph, rot_cross), dim=1).contiguous() # B x E=3 x 3 x C x K
+        x_graph = get_graph_feature(x,
+                                    k=self.k)  # (batch_size, 3, num_points) -> (batch_size, 3*init_dim, num_points, 40)
+        rot_cross, rot_embed = orientation_embd(x_in.permute(0, 2, 1), self.num_points // self.num_shells,
+                                                self.num_shells)  # B x C x 3
+        rot_cross = torch.sum(rot_cross, dim=1)  # B x 3
+        rot_cross = rot_cross.unsqueeze(1).unsqueeze(-1).unsqueeze(-1)  # B x 1 x 3 x 1 x 1
+        rot_cross = rot_cross.repeat(1, 1, 1, self.num_points, self.k)  # B x 1 x 3 x C x K
+        x_graph = torch.cat((x_graph, rot_cross), dim=1).contiguous()  # B x E=3 x 3 x C x K
 
-        x = self.vnn_lin_1(x_graph)                              
-        x = self.pool1(x).permute(0, 3, 1, 2) # B x C x E x 3
-        K = torch.unsqueeze(x, 2) # B x C x H x E x 3
-        Q = torch.unsqueeze(x, 2) # B x C x H x E x 3
-        V = torch.unsqueeze(x, 2) # B x C x H x E x 3
-        att = torch.squeeze(attention_layer(Q, K, V, 'cross'), 2).permute(0, 2, 3, 1) # B x E x 3 x C
-        att = att.unsqueeze(-1).repeat(1, 1, 1, 1, self.k) # B x 1 x 3 x C x K
-        x = torch.cat((x_graph, att), dim=1).contiguous() # B x E=3 x 3 x C x K
+        x = self.vnn_lin_1(x_graph)
+        x = self.pool1(x).permute(0, 3, 1, 2)  # B x C x E x 3
+        K = torch.unsqueeze(x, 2)  # B x C x H x E x 3
+        Q = torch.unsqueeze(x, 2)  # B x C x H x E x 3
+        V = torch.unsqueeze(x, 2)  # B x C x H x E x 3
+        att = torch.squeeze(attention_layer(Q, K, V, 'cross'), 2).permute(0, 2, 3, 1)  # B x E x 3 x C
+        att = att.unsqueeze(-1).repeat(1, 1, 1, 1, self.k)  # B x 1 x 3 x C x K
+        x = torch.cat((x_graph, att), dim=1).contiguous()  # B x E=3 x 3 x C x K
 
         x = self.conv1(x)  # (batch_size, 3*4, num_points, ...) -> (batch_size, 64, num_points, ...)
         x = self.conv2(x)  # (batch_size, 64, num_points, ...) -> (batch_size, 64, num_points, ...)
@@ -2062,9 +1400,9 @@ class EQCNN_partseg_shell_channels(nn.Module):
         return x
 
 
-class EQCNN_complex(nn.Module):
+class Complex_Only(nn.Module):
     def __init__(self, args, seg_num_all, b_only=False):
-        super(EQCNN_complex, self).__init__()
+        super(Complex_Only, self).__init__()
         self.seg_num_all = seg_num_all
         self.k = args.k
         self.use_x_coord = args.use_x_coord
@@ -2189,7 +1527,7 @@ def orientation_embd(x, patch_size, num_shells):
     sq_distance_mat = sq_dist_mat(x)
     patches_ = compute_patches(x, sq_distance_mat, patch_size)  # B x C x K x 3
     all_embd = torch.reshape(patches_, (
-    patches_.size()[0], patches_.size()[1], num_shells, -1, 3))  # B x C x num_shells x K / num_shells x 3
+        patches_.size()[0], patches_.size()[1], num_shells, -1, 3))  # B x C x num_shells x K / num_shells x 3
     all_embd = all_embd - torch.unsqueeze(torch.unsqueeze(x, dim=-2), dim=-2)
     embd = torch.mean(all_embd, dim=-2)  # B x C x num_shells x 3
 
@@ -2213,123 +1551,29 @@ def orientation_embd(x, patch_size, num_shells):
     return cross, embd
 
 
-class EQCNN_complex_shell(nn.Module):
+class OAVNN(nn.Module):
     def __init__(self, args, seg_num_all):
-        super(EQCNN_complex_shell, self).__init__()
+        super(OAVNN, self).__init__()
         self.seg_num_all = seg_num_all
         self.k = args.k
         self.num_points = args.num_points
         self.num_shells = args.num_shells
         self.use_x_coord = args.use_x_coord
         self.emb_dims = args.emb_dims
-        self.vnn_lin_1 = VNSimpleLinear(3, args.emb_dims//3)
-        self.vnn_lin_2 = VNSimpleLinear(3, args.emb_dims//3)   
-        
-        self.pool1 = mean_pool
-        self.pool2 = mean_pool  
-
-        self.vnn_lin_3 = VNSimpleLinear(4 * (args.emb_dims//3), args.emb_dims//3)
-        self.vnn_lin_4 = VNSimpleLinear(4 * (args.emb_dims//3), args.emb_dims//3)   
-        
-        self.pool3 = mean_pool
-        self.pool4 = mean_pool  
-
-        self.complex_lin_1 = ComplexLinearAndLeakyReLU(args.emb_dims//3, args.emb_dims//3)
-        self.complex_lin_2 = ComplexLinearAndLeakyReLU(args.emb_dims//3, args.emb_dims//3)
-        self.std_feature = VNSimpleStdFeature(args.emb_dims//3*2, dim=4, use_batchnorm=args.use_batchnorm, 
-            combine_lin_nonlin=args.combine_lin_nonlin, reflection_variant=False)
-        
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(256)
-        self.bn3 = nn.BatchNorm1d(256)
-        self.bn4 = nn.BatchNorm1d(128)
-
-        self.conv1 = nn.Sequential(nn.Conv1d(args.emb_dims//3*6, 256, kernel_size=1, bias=False),
-                               self.bn2,
-                               nn.LeakyReLU(negative_slope=0.2))
-        self.dp1 = nn.Dropout(p=args.dropout)
-        self.conv2 = nn.Sequential(nn.Conv1d(256, 256, kernel_size=1, bias=False),
-                                   self.bn3,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.dp2 = nn.Dropout(p=args.dropout)
-        self.conv3 = nn.Sequential(nn.Conv1d(256, 128, kernel_size=1, bias=False),
-                                   self.bn4,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv4 = nn.Conv1d(128, self.seg_num_all, kernel_size=1, bias=False)
-
-    def forward(self, x_in, l):
-        batch_size = x_in.size(0)
-        num_points = x_in.size(2)
-        device = torch.device("cuda")
-        
-        x = x_in.unsqueeze(1)
-        x_coord = x #B x E x 3 x C
-
-        x_graph = get_graph_feature(x, k=self.k, x_coord=x_coord, use_x_coord=self.use_x_coord) # B x E=2 x 3 x C x K
-        
-        rot_cross, rot_embed = orientation_embd(x_in.permute(0, 2, 1), self.num_points // self.num_shells, self.num_shells) # B x C x 3
-        rot_cross = torch.sum(rot_cross, dim=1) # B x 3
-        rot_cross = rot_cross.unsqueeze(1).unsqueeze(-1).unsqueeze(-1) # B x 1 x 3 x 1 x 1
-        rot_cross = rot_cross.repeat(1, 1, 1, self.num_points, self.k) # B x 1 x 3 x C x K
-        x_graph = torch.cat((x_graph, rot_cross), dim=1).contiguous() # B x E=3 x 3 x C x K
-
-        x = self.vnn_lin_1(x_graph)                              
-        x = self.pool1(x).permute(0, 3, 1, 2) # B x C x E x 3
-
-        j = self.vnn_lin_2(x_graph)                           
-        j = self.pool2(j).permute(0, 3, 1, 2) # B x C x E x 3  
-
-        y = self.complex_lin_1(x, j, device) # B x E x 3 x C
-        
-        K = torch.unsqueeze(x, 2) # B x C x H x E x 3
-        Q = torch.unsqueeze(x, 2) # B x C x H x E x 3
-        V = torch.unsqueeze(x, 2) # B x C x H x E x 3
-        att = torch.squeeze(attention_layer(Q, K, V, 'cross'), 2).permute(0, 2, 3, 1) # B x E x 3 x C
-
-        combd = torch.cat((y, att), 1) # B x 2E x 3 x C
-      
-        x_graph_2 = get_graph_feature(combd, k=self.k, x_coord=x_coord, use_x_coord=self.use_x_coord) 
-
-        x_2 = self.vnn_lin_3(x_graph_2)                              
-        x_2 = self.pool3(x_2).permute(0, 3, 1, 2) # B x C x E x 3
-
-        j_2 = self.vnn_lin_4(x_graph_2)                           
-        j_2 = self.pool4(j_2).permute(0, 3, 1, 2) # B x C x E x 3 
-
-        y_2 = self.complex_lin_2(x_2, j_2, device) # B x E x 3 x C
-        
-        y_mean = y_2.mean(dim=-1, keepdim=True).expand(y_2.size()) # B x E x 3 x C
-
-        x = torch.cat((y_2, y_mean), 1) # B x 2E x 3 x C
-        x, z0 = self.std_feature(x) # x: B x 2E x 3 x C
-                                    # z0: 1 x 3 x 3 x C
-
-        x = x.view(batch_size, -1, num_points) # B x 2E * 3 x C
-        x = self.conv1(x) # B x 256 x C
-        x = self.dp1(x) # B x 256 x C
-        x = self.conv2(x) # B x 256 x C
-        x = self.dp2(x) # B x 256 x C
-        x = self.conv3(x) # B x 128 x C
-        x = self.conv4(x) # B x seg_num_all x C
-        return x
-
-
-class EQCNN_complex_shell_single_complex(nn.Module):
-    def __init__(self, args, seg_num_all):
-        super(EQCNN_complex_shell_single_complex, self).__init__()
-        self.seg_num_all = seg_num_all
-        self.k = args.k
-        self.num_points = args.num_points
-        self.num_shells = args.num_shells
-        self.use_x_coord = args.use_x_coord
-        self.emb_dims = args.emb_dims
-        self.vnn_lin_1 = VNSimpleLinear(4, args.emb_dims // 3)
-        self.vnn_lin_2 = VNSimpleLinear(4, args.emb_dims // 3)
+        self.vnn_lin_1 = VNSimpleLinear(3, args.emb_dims // 3)
+        self.vnn_lin_2 = VNSimpleLinear(3, args.emb_dims // 3)
 
         self.pool1 = mean_pool
         self.pool2 = mean_pool
 
+        self.vnn_lin_3 = VNSimpleLinear(4 * (args.emb_dims // 3), args.emb_dims // 3)
+        self.vnn_lin_4 = VNSimpleLinear(4 * (args.emb_dims // 3), args.emb_dims // 3)
+
+        self.pool3 = mean_pool
+        self.pool4 = mean_pool
+
         self.complex_lin_1 = ComplexLinearAndLeakyReLU(args.emb_dims // 3, args.emb_dims // 3)
+        self.complex_lin_2 = ComplexLinearAndLeakyReLU(args.emb_dims // 3, args.emb_dims // 3)
         self.std_feature = VNSimpleStdFeature(args.emb_dims // 3 * 2, dim=4, use_batchnorm=args.use_batchnorm,
                                               combine_lin_nonlin=args.combine_lin_nonlin, reflection_variant=False)
 
@@ -2366,204 +1610,6 @@ class EQCNN_complex_shell_single_complex(nn.Module):
         rot_cross = torch.sum(rot_cross, dim=1)  # B x 3
         rot_cross = rot_cross.unsqueeze(1).unsqueeze(-1).unsqueeze(-1)  # B x 1 x 3 x 1 x 1
         rot_cross = rot_cross.repeat(1, 1, 1, self.num_points, self.k)  # B x 1 x 3 x C x K
-
-        x = x.permute(0, 3, 1, 2)  # B x C x E x 3
-        K = torch.unsqueeze(x, 2)  # B x C x H x E x 3
-        Q = torch.unsqueeze(x, 2)  # B x C x H x E x 3
-        V = torch.unsqueeze(x, 2)  # B x C x H x E x 3
-        att = torch.squeeze(attention_layer(Q, K, V, 'cross'), 2).permute(0, 2, 3, 1)  # B x E=1 x 3 x C
-        att = att.unsqueeze(4).repeat(1, 1, 1, 1, self.k)  # B x E=1 x 3 x C x K
-
-        x_graph = torch.cat((x_graph, rot_cross, att), dim=1).contiguous()  # B x E=4 x 3 x C x K
-
-        x = self.vnn_lin_1(x_graph)
-        x = self.pool1(x).permute(0, 3, 1, 2)  # B x C x E x 3
-
-        j = self.vnn_lin_2(x_graph)
-        j = self.pool2(j).permute(0, 3, 1, 2)  # B x C x E x 3
-
-        y = self.complex_lin_1(x, j, device)  # B x E x 3 x C
-
-        y_mean = y.mean(dim=-1, keepdim=True).expand(y.size())  # B x E x 3 x C
-
-        x = torch.cat((y, y_mean), 1)  # B x 2E x 3 x C
-        x, z0 = self.std_feature(x)  # x: B x 2E x 3 x C
-        # z0: 1 x 3 x 3 x C
-
-        x = x.view(batch_size, -1, num_points)  # B x 2E * 3 x C
-        x = self.conv1(x)  # B x 256 x C
-        x = self.dp1(x)  # B x 256 x C
-        x = self.conv2(x)  # B x 256 x C
-        x = self.dp2(x)  # B x 256 x C
-        x = self.conv3(x)  # B x 128 x C
-        x = self.conv4(x)  # B x seg_num_all x C
-        return x
-
-
-class EQCNN_sampling_complex_shell_unet(nn.Module):
-    def __init__(self, args, seg_num_all):
-        super(EQCNN_sampling_complex_shell_unet, self).__init__()
-        self.seg_num_all = seg_num_all
-        self.k = args.k
-        self.num_points = args.num_points
-        self.num_shells = args.num_shells
-        self.use_x_coord = args.use_x_coord
-        self.emb_dims = args.emb_dims
-        self.vnn_lin_1 = VNSimpleLinear(6, args.emb_dims // 3)
-        self.vnn_lin_2 = VNSimpleLinear(6, args.emb_dims // 3)
-
-        self.pool1 = mean_pool
-        self.pool2 = mean_pool
-
-        self.complex_lin_1 = ComplexLinearAndLeakyReLU(args.emb_dims // 3, args.emb_dims // 3)
-        self.std_feature = VNSimpleStdFeature(args.emb_dims // 3 * 2, dim=4, use_batchnorm=args.use_batchnorm,
-                                              combine_lin_nonlin=args.combine_lin_nonlin, reflection_variant=False)
-
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(256)
-        self.bn3 = nn.BatchNorm1d(256)
-        self.bn4 = nn.BatchNorm1d(128)
-
-        self.conv1 = nn.Sequential(nn.Conv1d(args.emb_dims // 3 * 12, 256, kernel_size=1, bias=False),
-                                   self.bn2,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.dp1 = nn.Dropout(p=args.dropout)
-        self.conv2 = nn.Sequential(nn.Conv1d(256, 256, kernel_size=1, bias=False),
-                                   self.bn3,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.dp2 = nn.Dropout(p=args.dropout)
-        self.conv3 = nn.Sequential(nn.Conv1d(256, 128, kernel_size=1, bias=False),
-                                   self.bn4,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv4 = nn.Conv1d(128, self.seg_num_all, kernel_size=1, bias=False)
-
-    def forward(self, x_in, l):
-        batch_size = x_in.size(0)
-        num_points = x_in.size(2)
-        device = torch.device("cuda")
-
-        x = x_in.unsqueeze(1)  # B x 1 x 3 x C
-        x_kd = kd_mean_pool(x, 1)  # B x 1 x 3 x C
-
-        points, neighbors = sampled_get_graph_feature_channels(x, x_kd, k=self.k)  # B x E=1 x 3 x C x 1
-        # B x E=1 x 3 x C x K
-
-        rot_cross, rot_shell = orientation_embd(x_in.permute(0, 2, 1), num_points // self.num_shells,
-                                                self.num_shells)  # B x C * N x 3
-        avg_cross = torch.sum(rot_cross, dim=1)  # B x 3
-        avg_cross = avg_cross.unsqueeze(1).unsqueeze(-1).unsqueeze(-1)  # B x 1 x 3 x 1 x 1
-        avg_cross = avg_cross.repeat(1, 1, 1, num_points, 1)  # B x E=1 x 3 x C x 1
-        B, _, _, C, _ = avg_cross.size()
-        N = (self.num_shells * (self.num_shells - 1)) // 2
-        rot_cross = rot_cross.view(B, 1, C, N, 3).permute(0, 1, 4, 2, 3)  # B x E=1 x 3 x C x N
-        rot_shell = rot_shell.view(B, 1, C, N, 3).permute(0, 1, 4, 2, 3)  # B x E=1 x 3 x C x N
-
-        x = x.permute(0, 3, 1, 2)  # B x C x E x 3
-        K = torch.unsqueeze(x, 2)  # B x C x H x E x 3
-        Q = torch.unsqueeze(x, 2)  # B x C x H x E x 3
-        V = torch.unsqueeze(x, 2)  # B x C x H x E x 3
-        att = torch.squeeze(attention_layer(Q, K, V, 'cross'), 2).permute(0, 2, 3, 1).unsqueeze(
-            4)  # B x E=1 x 3 x C x 1
-
-        points = points.repeat(1, 1, 1, 1, self.k * N)
-        neighbors = neighbors.repeat(1, 1, 1, 1, N)
-        avg_cross = avg_cross.repeat(1, 1, 1, 1, self.k * N)
-        rot_shell = rot_shell.repeat(1, 1, 1, 1, self.k)
-        rot_cross = rot_cross.repeat(1, 1, 1, 1, self.k)
-        att = att.repeat(1, 1, 1, 1, self.k * N)
-
-        x_graph = torch.cat((points, neighbors, avg_cross, rot_shell, rot_cross, att), 1)  # B x E=6 x 3 x C x K * N
-
-        x = self.vnn_lin_1(x_graph)
-        x_pool = self.pool1(x)  # B x E x 3 x C
-        x_kd = kd_mean_pool(x_pool, 8).permute(0, 3, 1, 2)  # B x C / 8 x E x 3
-
-        j = self.vnn_lin_2(x_graph)
-        j = self.pool2(j)  # B x E x 3 x C
-        j_kd = kd_mean_pool(j, 8).permute(0, 3, 1, 2)  # B x C / 8 x E x 3
-
-        y = self.complex_lin_1(x_kd, j_kd, device)  # B x E x 3 x C / 8
-
-        y_mean = y.mean(dim=-1, keepdim=True).expand(y.size())  # B x E x 3 x C / 8
-
-        x = torch.cat((y, y_mean), 1)  # B x 2E x 3 x C / 2
-        x, z0 = self.std_feature(x)  # x: B x 2E x 3 x C / 2
-        # z0: 1 x 3 x 3 x C / 2
-
-        x = torch.repeat_interleave(x, 8, dim=3)  # B x 2E x 3 x C
-        x = torch.cat((x, x_pool, j), dim=1)  # B x 4E x 3 x C
-
-        num_subsampled_points = x.size(3)
-        x = x.view(batch_size, -1, num_subsampled_points)  # B x 2E * 3 x C
-        x = self.conv1(x)  # B x 256 x C
-        x = self.dp1(x)  # B x 256 x C
-        x = self.conv2(x)  # B x 256 x C
-        x = self.dp2(x)  # B x 256 x C
-        x = self.conv3(x)  # B x 128 x C
-        x = self.conv4(x)  # B x seg_num_all x C
-
-        return x
-
-
-class EQCNN_complex_shell_dotinvar(nn.Module):
-    def __init__(self, args, seg_num_all, b_only=False):
-        super(EQCNN_complex_shell_dotinvar, self).__init__()
-        self.seg_num_all = seg_num_all
-        self.k = args.k
-        self.num_points = args.num_points
-        self.num_shells = args.num_shells
-        self.use_x_coord = args.use_x_coord
-        self.emb_dims = args.emb_dims
-        self.vnn_lin_1 = VNSimpleLinear(3, args.emb_dims // 3)
-        self.vnn_lin_2 = VNSimpleLinear(3, args.emb_dims // 3)
-
-        self.pool1 = mean_pool
-        self.pool2 = mean_pool
-
-        self.vnn_lin_3 = VNSimpleLinear(4 * (args.emb_dims // 3), args.emb_dims // 3)
-        self.vnn_lin_4 = VNSimpleLinear(4 * (args.emb_dims // 3), args.emb_dims // 3)
-
-        self.pool3 = mean_pool
-        self.pool4 = mean_pool
-
-        self.complex_lin_1 = ComplexLinearAndLeakyReLU(args.emb_dims // 3, args.emb_dims // 3)
-        self.complex_lin_2 = ComplexLinearAndLeakyReLU(args.emb_dims // 3, args.emb_dims // 3)
-        self.std_feature = VNSimpleStdFeature(args.emb_dims // 3 * 2, dim=4, use_batchnorm=args.use_batchnorm,
-                                              combine_lin_nonlin=args.combine_lin_nonlin, reflection_variant=False,
-                                              b_only=b_only)
-
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(256)
-        self.bn3 = nn.BatchNorm1d(256)
-        self.bn4 = nn.BatchNorm1d(128)
-
-        self.conv1 = nn.Sequential(nn.Conv1d(args.emb_dims // 3, 256, kernel_size=1, bias=False),
-                                   self.bn2,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.dp1 = nn.Dropout(p=args.dropout)
-        self.conv2 = nn.Sequential(nn.Conv1d(256, 256, kernel_size=1, bias=False),
-                                   self.bn3,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.dp2 = nn.Dropout(p=args.dropout)
-        self.conv3 = nn.Sequential(nn.Conv1d(256, 128, kernel_size=1, bias=False),
-                                   self.bn4,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv4 = nn.Conv1d(128, self.seg_num_all, kernel_size=1, bias=False)
-
-    def forward(self, x_in, l, device):
-        batch_size = x_in.size(0)
-        num_points = x_in.size(2)
-
-        x = x_in.unsqueeze(1)
-        x_coord = x  # B x E x 3 x C
-
-        x_graph = get_graph_feature(x, k=self.k, x_coord=x_coord, use_x_coord=self.use_x_coord)  # B x E=2 x 3 x C x K
-
-        rot_cross, rot_embed = orientation_embd(x_in.permute(0, 2, 1), num_points // self.num_shells,
-                                                self.num_shells)  # B x C x 3
-        rot_cross = torch.sum(rot_cross, dim=1)  # B x 3
-        rot_cross = rot_cross.unsqueeze(1).unsqueeze(-1).unsqueeze(-1)  # B x 1 x 3 x 1 x 1
-        rot_cross = rot_cross.repeat(1, 1, 1, num_points, self.k)  # B x 1 x 3 x C x K
         x_graph = torch.cat((x_graph, rot_cross), dim=1).contiguous()  # B x E=3 x 3 x C x K
 
         x = self.vnn_lin_1(x_graph)
@@ -2590,221 +1636,18 @@ class EQCNN_complex_shell_dotinvar(nn.Module):
         j_2 = self.pool4(j_2).permute(0, 3, 1, 2)  # B x C x E x 3
 
         y_2 = self.complex_lin_2(x_2, j_2, device)  # B x E x 3 x C
-        y_2 = y_2.permute(0, 3, 1, 2).unsqueeze(4)  # B x C x E x 3 x 1
-        x_in = x_in.unsqueeze(1).permute(0, 3, 1, 2).unsqueeze(3)  # B x C x 1 x 1 x 3
-        x = torch.matmul(x_in, y_2)  # B x C x E x 1 x 1
-        x = x.squeeze(4).squeeze(3)  # B x C x E
 
-        x = x.permute(0, 2, 1)  # B x E x C
+        y_mean = y_2.mean(dim=-1, keepdim=True).expand(y_2.size())  # B x E x 3 x C
+
+        x = torch.cat((y_2, y_mean), 1)  # B x 2E x 3 x C
+        x, z0 = self.std_feature(x)  # x: B x 2E x 3 x C
+        # z0: 1 x 3 x 3 x C
+
+        x = x.view(batch_size, -1, num_points)  # B x 2E * 3 x C
         x = self.conv1(x)  # B x 256 x C
         x = self.dp1(x)  # B x 256 x C
         x = self.conv2(x)  # B x 256 x C
         x = self.dp2(x)  # B x 256 x C
         x = self.conv3(x)  # B x 128 x C
         x = self.conv4(x)  # B x seg_num_all x C
-        return x
-
-
-class EQCNN_sym_detect(nn.Module):
-    def __init__(self, args):
-        super(EQCNN_sym_detect, self).__init__()
-        self.k = args.k
-        self.use_x_coord = args.use_x_coord
-        self.emb_dims = args.emb_dims
-        self.vnn_lin_1 = VNSimpleLinear(1, args.emb_dims // 3)
-        self.device = torch.device("cuda" if args.cuda else "cpu")
-
-    def forward(self, x_in):
-        batch_size = x_in.size(0)
-        num_points = x_in.size(1)
-
-        x = x_in.unsqueeze(1)
-        x_coord = x
-
-        x = self.vnn_lin_1(x)
-
-        x = x.reshape(batch_size, -1, 3)
-        
-        unsqueezed_data = x.unsqueeze(dim=3)
-        covar = torch.sum(torch.matmul(unsqueezed_data, unsqueezed_data.permute(0, 1, 3, 2)), dim=1) / (num_points - 1)
-        eigenvalues, eigenvectors = np.linalg.eig(covar.cpu().detach().numpy())
-        eigenvectors = torch.tensor(eigenvectors)
-        eigenvalues = torch.tensor(eigenvalues)
-        idx = torch.argmin(eigenvalues, dim=1)
-        idx_base = torch.arange(0, batch_size) * 3
-        idx = idx + idx_base
-        lr_vectors = eigenvectors.reshape(batch_size*3,3)[idx, :].abs()
-        repeat_vectors = lr_vectors.unsqueeze(1).repeat(1, num_points, 1).to(self.device)
-        labels = torch.matmul(x_in.unsqueeze(2), repeat_vectors.unsqueeze(3)).squeeze(3).squeeze(2)
-        labels = (labels > 0).long()
-        return x, eigenvectors, eigenvalues, labels
-
-
-def torch_fibonnacci_sphere_sampling(num_pts): # produces equispaced points on a sphere
-    indices = np.arange(0, num_pts, dtype=float) + 0.5
-    phi = np.arccos(1 - 2 * indices / num_pts)
-    theta = np.pi * (1 + 5 ** 0.5) * indices
-    x, y, z = np.cos(theta) * np.sin(phi), np.sin(theta) * np.sin(phi), np.cos(phi)
-    S2 = np.stack([x, y, z], axis=-1)
-    return torch.tensor(S2)
-
-
-def select_sym(V, n_samples, n_it, h):
-    S = torch_fibonnacci_sphere_sampling(num_pts=n_samples)
-    
-    V1 = tf.expand_dims(V, axis=-2)
-    V2 = tf.expand_dims(V, axis=-3)
-
-    C = tf.subtract(V2, V1)
-    C = tf.multiply(C, C)
-    C = tf.sqrt(tf.reduce_sum(C, axis=-1, keepdims=False))
-
-    S1 = tf.expand_dims(S, axis=-2)
-    S2 = tf.expand_dims(S, axis=-3)
-    X = tf.subtract(S2, S1)
-
-    X = tf.expand_dims(X, axis=0)
-    X = tf.tile(X, (C.shape[0], 1, 1, 1))
-
-    D = tf.sqrt(tf.reduce_sum(X*X, axis=-1, keepdims=False))
-    K = sinkhorn(C, n_it, h)
-
-    print(K[0, ...])
-
-    KD = tf.multiply(K, D)
-
-
-    KD = tf.reshape(KD, [KD.shape[0], -1])
-    X = tf.reshape(X, [X.shape[0], -1, 3])
-
-    idx = tf.argmax(KD, axis=-1)
-    batch_idx = tf.range(0, idx.shape[0], dtype=tf.int64)
-    batch_idx = tf.expand_dims(batch_idx, axis=-1)
-    idx = tf.expand_dims(idx, axis=-1)
-    idx = tf.stack([batch_idx, idx], axis=-1)
-    X = tf.gather_nd(X, idx)
-    # X = X[:, 0, :]
-    X = tf.linalg.l2_normalize(X, axis=-1)
-    return X
-
-
-def sinkhorn(C, n_it):
-    a = torch.ones((C.size()[0], C.size()[-2])) / float(C.size()[-2]) # 1 / num_points
-    b = torch.ones((C.size()[0], C.size()[-1])) / float(C.size()[-2]) # 1 / num_points
-
-    u = torch.ones((C.size()[0], C.size()[-2]))
-    C_max = torch.amax(C, (-2, -1), keepdim=True)
-    C = C / C_max
-    K = (-C).exp()
-    # K = tf.exp(-C/l)
-
-
-    for i in range(n_it):
-        t = torch.einsum("bij,bi->bj", K, u)
-        v = b / t
-        t = torch.einsum("bij,bj->bi", K, v)
-        u = a / t
-
-    Y = K * v.unsqueeze(-2) 
-    Y = Y * u.unsqueeze(-1)
-    return Y
-
-
-class EQCNN_sinkhorn(nn.Module):
-    def __init__(self, args):
-        super(EQCNN_sinkhorn, self).__init__()
-        self.k = args.k
-        self.use_x_coord = args.use_x_coord
-        self.emb_dims = args.emb_dims
-        self.vnn_lin_1 = VNSimpleLinear(1, args.emb_dims // 3)
-        self.device = torch.device("cuda" if args.cuda else "cpu")
-
-    def forward(self, x_in):
-        batch_size = x_in.size(0)
-        num_points = x_in.size(1)
-
-        x = x_in.unsqueeze(1)
-        x_coord = x
-
-        x = self.vnn_lin_1(x)
-
-        x = x.reshape(batch_size, -1, 3)
-        
-        
-        return x
-
-
-class DGCNN_semseg(nn.Module):
-    def __init__(self, args):
-        super(DGCNN_semseg, self).__init__()
-        self.args = args
-        self.k = args.k
-
-        self.bn1 = nn.BatchNorm2d(64)
-        self.bn2 = nn.BatchNorm2d(64)
-        self.bn3 = nn.BatchNorm2d(64)
-        self.bn4 = nn.BatchNorm2d(64)
-        self.bn5 = nn.BatchNorm2d(64)
-        self.bn6 = nn.BatchNorm1d(args.emb_dims)
-        self.bn7 = nn.BatchNorm1d(512)
-        self.bn8 = nn.BatchNorm1d(256)
-
-        self.conv1 = nn.Sequential(nn.Conv2d(18, 64, kernel_size=1, bias=False),
-                                   self.bn1,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=False),
-                                   self.bn2,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv3 = nn.Sequential(nn.Conv2d(64 * 2, 64, kernel_size=1, bias=False),
-                                   self.bn3,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv4 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=1, bias=False),
-                                   self.bn4,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv5 = nn.Sequential(nn.Conv2d(64 * 2, 64, kernel_size=1, bias=False),
-                                   self.bn5,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv6 = nn.Sequential(nn.Conv1d(192, args.emb_dims, kernel_size=1, bias=False),
-                                   self.bn6,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv7 = nn.Sequential(nn.Conv1d(1216, 512, kernel_size=1, bias=False),
-                                   self.bn7,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.conv8 = nn.Sequential(nn.Conv1d(512, 256, kernel_size=1, bias=False),
-                                   self.bn8,
-                                   nn.LeakyReLU(negative_slope=0.2))
-        self.dp1 = nn.Dropout(p=args.dropout)
-        self.conv9 = nn.Conv1d(256, 13, kernel_size=1, bias=False)
-
-    def forward(self, x):
-        batch_size = x.size(0)
-        num_points = x.size(2)
-
-        x = get_graph_feature(x, k=self.k, dim9=True)  # (batch_size, 9, num_points) -> (batch_size, 9*2, num_points, k)
-        x = self.conv1(x)  # (batch_size, 9*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x = self.conv2(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
-        x1 = x.max(dim=-1, keepdim=False)[0]  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-
-        x = get_graph_feature(x1, k=self.k)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv3(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x = self.conv4(x)  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points, k)
-        x2 = x.max(dim=-1, keepdim=False)[0]  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-
-        x = get_graph_feature(x2, k=self.k)  # (batch_size, 64, num_points) -> (batch_size, 64*2, num_points, k)
-        x = self.conv5(x)  # (batch_size, 64*2, num_points, k) -> (batch_size, 64, num_points, k)
-        x3 = x.max(dim=-1, keepdim=False)[0]  # (batch_size, 64, num_points, k) -> (batch_size, 64, num_points)
-
-        x = torch.cat((x1, x2, x3), dim=1)  # (batch_size, 64*3, num_points)
-
-        x = self.conv6(x)  # (batch_size, 64*3, num_points) -> (batch_size, emb_dims, num_points)
-        x = x.max(dim=-1, keepdim=True)[0]  # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims, 1)
-
-        x = x.repeat(1, 1, num_points)  # (batch_size, 1024, num_points)
-        x = torch.cat((x, x1, x2, x3), dim=1)  # (batch_size, 1024+64*3, num_points)
-
-        x = self.conv7(x)  # (batch_size, 1024+64*3, num_points) -> (batch_size, 512, num_points)
-        x = self.conv8(x)  # (batch_size, 512, num_points) -> (batch_size, 256, num_points)
-        x = self.dp1(x)
-        x = self.conv9(x)  # (batch_size, 256, num_points) -> (batch_size, 13, num_points)
-
         return x

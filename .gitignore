@@ -1,0 +1,12 @@
+.DS_Store
+*/.DS_Store
+/*data*
+/scripts_orion
+/trained
+/__pycache__
+/.ipynb_checkpoints
+/shapenet_single_class
+*.out
+*.zip
+/results
+/outputs
