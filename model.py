@@ -25,7 +25,7 @@ import sys
 from scipy.spatial import cKDTree
 import pickle
 from scipy import stats
-from pytorch3d.transforms import RotateAxisAngle, Rotate, random_rotations
+# from pytorch3d.transforms import RotateAxisAngle, Rotate, random_rotations
 
 EPS = 1e-6
 

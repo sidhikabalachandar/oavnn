@@ -15,7 +15,6 @@ python main_combined.py --exp_name test --model eqcnn --rot so3 --class_choice a
 export HDF5_USE_FILE_LOCKING=FALSE
 """
 
-
 from __future__ import print_function
 import os
 import argparse
@@ -34,14 +33,15 @@ import pickle
 
 from pytorch3d.transforms import RotateAxisAngle, Rotate, random_rotations
 
+
 def _init_():
     if not os.path.exists('results/partseg'):
         os.makedirs('results/partseg')
-    if not os.path.exists('results/partseg/'+args.exp_name):
-        os.makedirs('results/partseg/'+args.exp_name)
-    if not os.path.exists('results/partseg/'+args.exp_name+'/'+'models'):
-        os.makedirs('results/partseg/'+args.exp_name+'/'+'models')
-    os.system('cp main_partseg.py results/partseg'+'/'+args.exp_name+'/'+'main_partseg.py.backup')
+    if not os.path.exists('results/partseg/' + args.exp_name):
+        os.makedirs('results/partseg/' + args.exp_name)
+    if not os.path.exists('results/partseg/' + args.exp_name + '/' + 'models'):
+        os.makedirs('results/partseg/' + args.exp_name + '/' + 'models')
+    os.system('cp main_partseg.py results/partseg' + '/' + args.exp_name + '/' + 'main_partseg.py.backup')
     os.system('cp model_equi.py results/partseg' + '/' + args.exp_name + '/' + 'model.py.backup')
     os.system('cp util.py results/partseg' + '/' + args.exp_name + '/' + 'util.py.backup')
     os.system('cp data.py results/partseg' + '/' + args.exp_name + '/' + 'data.py.backup')
@@ -86,50 +86,69 @@ def get_lr_seg(data):
     seg[data[:, :, 2] <= 0] = 0
     return seg
 
+
 def train(args, io):
     if args.dataset == 'shapenet_single_class':
-        train_dataset = ShapeNetSingleClass(partition='trainval', num_points=args.num_points, flatten_dim=args.flatten_dim, class_choice=args.class_choice)
+        train_dataset = ShapeNetSingleClass(partition='trainval', num_points=args.num_points,
+                                            flatten_dim=args.flatten_dim, class_choice=args.class_choice)
         if (len(train_dataset) < 100):
             drop_last = False
         else:
             drop_last = True
-        train_loader = DataLoader(train_dataset, num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=drop_last)
-        test_loader = DataLoader(ShapeNetSingleClass(partition='test', num_points=args.num_points, flatten_dim=args.flatten_dim, class_choice=args.class_choice), 
-                                num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+        train_loader = DataLoader(train_dataset, num_workers=8, batch_size=args.batch_size, shuffle=True,
+                                  drop_last=drop_last)
+        test_loader = DataLoader(
+            ShapeNetSingleClass(partition='test', num_points=args.num_points, flatten_dim=args.flatten_dim,
+                                class_choice=args.class_choice),
+            num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
         seg_num_all = 2
-    else:
+    elif args.dataset == 'shapenetpart':
         train_dataset = ShapeNetPart(partition='trainval', num_points=args.num_points, class_choice=args.class_choice)
         if (len(train_dataset) < 100):
             drop_last = False
         else:
             drop_last = True
-        train_loader = DataLoader(train_dataset, num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=drop_last)
-        test_loader = DataLoader(ShapeNetPart(partition='test', num_points=args.num_points, class_choice=args.class_choice), 
-                                num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+        train_loader = DataLoader(train_dataset, num_workers=8, batch_size=args.batch_size, shuffle=True,
+                                  drop_last=drop_last)
+        test_loader = DataLoader(
+            ShapeNetPart(partition='test', num_points=args.num_points, class_choice=args.class_choice),
+            num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
         seg_num_all = 2
-    
+    else:
+        train_dataset = ShapeNetCustom(args.data_path, partition='trainval', num_points=args.num_points,
+                                       class_choice=args.class_choice)
+        if (len(train_dataset) < 100):
+            drop_last = False
+        else:
+            drop_last = True
+        train_loader = DataLoader(train_dataset, num_workers=8, batch_size=args.batch_size, shuffle=True,
+                                  drop_last=drop_last)
+        test_loader = DataLoader(ShapeNetCustom(args.data_path, partition='test', num_points=args.num_points,
+                                                class_choice=args.class_choice),
+                                 num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+        seg_num_all = 2
+
     device = torch.device("cuda" if args.cuda else "cpu")
 
-    #Try to load models
+    # Try to load models
     seg_start_index = train_loader.dataset.seg_start_index
-    if args.model == "dgcnn": # dgcnn_128, num_points=64
+    if args.model == "dgcnn":  # dgcnn_128, num_points=64
         model = DGCNN(args, seg_num_all).to(device)
-    elif args.model == "vnn": # vnn_128, num_points=64
+    elif args.model == "vnn":  # vnn_128, num_points=64
         model = VNN(args, seg_num_all).to(device)
-    elif args.model == "complex_only": # complex_only_128, num_points=128
+    elif args.model == "complex_only":  # complex_only_128, num_points=128
         model = Complex_Only(args, seg_num_all).to(device)
-    elif args.model == "shell_only": # shell_only_128, num_points=128
+    elif args.model == "shell_only":  # shell_only_128, num_points=128
         model = Shell_Only(args, seg_num_all).to(device)
-    elif args.model == "oavnn": # oavnn_128, num_points=128
+    elif args.model == "oavnn":  # oavnn_128, num_points=128
         model = OAVNN(args, seg_num_all).to(device)
-    
 
     model = nn.DataParallel(model)
     print("Let's use", torch.cuda.device_count(), "GPUs!")
 
     if args.use_sgd:
         print("Use SGD")
-        opt = optim.SGD(model.parameters(), lr=args.lr*100, momentum=args.momentum, weight_decay=1e-4)
+        opt = optim.SGD(model.parameters(), lr=args.lr * 100, momentum=args.momentum, weight_decay=1e-4)
     else:
         print("Use Adam")
         opt = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
@@ -143,6 +162,7 @@ def train(args, io):
 
     best_test_iou = 0
     for epoch in range(args.epochs):
+        print("start first epoch")
         ####################
         # Train
         ####################
@@ -158,13 +178,13 @@ def train(args, io):
             seg = get_lr_seg(data)
             trot = None
             if args.rot == 'z':
-                trot = RotateAxisAngle(angle=torch.rand(data.shape[0])*360, axis="Z", degrees=True, device=device)
+                trot = RotateAxisAngle(angle=torch.rand(data.shape[0]) * 360, axis="Z", degrees=True, device=device)
             elif args.rot == 'so3':
                 R = random_rotations(data.shape[0])
                 unrot_R = torch.inverse(R)
                 trot = Rotate(R=R, device=device)
                 tunrot = Rotate(R=unrot_R, device=device)
-            
+
             label_one_hot = np.zeros((label.shape[0], 16))
             for idx in range(label.shape[0]):
                 label_one_hot[idx, label[idx]] = 1
@@ -174,23 +194,23 @@ def train(args, io):
                 data = trot.transform_points(data)
 
             seg = seg.type(torch.int64)
-            
+
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
             opt.zero_grad()
 
             seg_pred = model(data, label_one_hot)
             seg_pred = seg_pred.permute(0, 2, 1).contiguous()
-            loss = criterion(seg_pred.view(-1, seg_num_all), seg.view(-1,1).squeeze())
+            loss = criterion(seg_pred.view(-1, seg_num_all), seg.view(-1, 1).squeeze())
             loss.backward()
             opt.step()
-            pred = seg_pred.max(dim=2)[1]               # (batch_size, num_points)
+            pred = seg_pred.max(dim=2)[1]  # (batch_size, num_points)
             count += batch_size
             train_loss += loss.item() * batch_size
-            seg_np = seg.cpu().numpy()                  # (batch_size, num_points)
-            pred_np = pred.detach().cpu().numpy()       # (batch_size, num_points)
-            train_true_cls.append(seg_np.reshape(-1))       # (batch_size * num_points)
-            train_pred_cls.append(pred_np.reshape(-1))      # (batch_size * num_points)
+            seg_np = seg.cpu().numpy()  # (batch_size, num_points)
+            pred_np = pred.detach().cpu().numpy()  # (batch_size, num_points)
+            train_true_cls.append(seg_np.reshape(-1))  # (batch_size * num_points)
+            train_pred_cls.append(pred_np.reshape(-1))  # (batch_size * num_points)
             train_true_seg.append(seg_np)
             train_pred_seg.append(pred_np)
             train_label_seg.append(label.reshape(-1))
@@ -210,8 +230,8 @@ def train(args, io):
         train_pred_seg = np.concatenate(train_pred_seg, axis=0)
         train_label_seg = np.concatenate(train_label_seg)
         train_ious = calculate_shape_IoU(train_pred_seg, train_true_seg, train_label_seg, args.class_choice, args)
-        outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f, train iou: %.6f' % (epoch, 
-                                                                                                  train_loss*1.0/count,
+        outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f, train iou: %.6f' % (epoch,
+                                                                                                  train_loss * 1.0 / count,
                                                                                                   train_acc,
                                                                                                   avg_per_class_acc,
                                                                                                   np.mean(train_ious))
@@ -232,10 +252,10 @@ def train(args, io):
             seg = get_lr_seg(data)
             trot = None
             if args.rot == 'z':
-                trot = RotateAxisAngle(angle=torch.rand(data.shape[0])*360, axis="Z", degrees=True, device=device)
+                trot = RotateAxisAngle(angle=torch.rand(data.shape[0]) * 360, axis="Z", degrees=True, device=device)
             elif args.rot == 'so3':
                 trot = Rotate(R=random_rotations(data.shape[0]), device=device)
-            
+
             seg = seg - seg_start_index
             label_one_hot = np.zeros((label.shape[0], 16))
             for idx in range(label.shape[0]):
@@ -244,7 +264,7 @@ def train(args, io):
             data, label_one_hot, seg = data.to(device), label_one_hot.to(device), seg.to(device)
             if trot is not None:
                 data = trot.transform_points(data)
-            
+
             seg = seg.type(torch.int64)
 
             data = data.permute(0, 2, 1)
@@ -252,7 +272,7 @@ def train(args, io):
 
             seg_pred = model(data, label_one_hot)
             seg_pred = seg_pred.permute(0, 2, 1).contiguous()
-            loss = criterion(seg_pred.view(-1, seg_num_all), seg.view(-1,1).squeeze())
+            loss = criterion(seg_pred.view(-1, seg_num_all), seg.view(-1, 1).squeeze())
             pred = seg_pred.max(dim=2)[1]
             count += batch_size
             test_loss += loss.item() * batch_size
@@ -272,7 +292,7 @@ def train(args, io):
         test_label_seg = np.concatenate(test_label_seg)
         test_ious = calculate_shape_IoU(test_pred_seg, test_true_seg, test_label_seg, args.class_choice, args)
         outstr = 'Test %d, loss: %.6f, test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (epoch,
-                                                                                              test_loss*1.0/count,
+                                                                                              test_loss * 1.0 / count,
                                                                                               test_acc,
                                                                                               avg_per_class_acc,
                                                                                               np.mean(test_ious))
@@ -289,10 +309,11 @@ if __name__ == "__main__":
                         help='Name of the experiment')
     parser.add_argument('--model', type=str, default='eqcnn', metavar='N',
                         help='Model to use')
-    parser.add_argument('--dataset', type=str, default='shapenetpart', metavar='N')
+    parser.add_argument('--dataset', type=str, default='', metavar='N')
+    parser.add_argument('--data_path', type=str, default='', metavar='N')
     parser.add_argument('--class_choice', type=str, default=None, metavar='N',
                         choices=['airplane', 'bag', 'cap', 'car', 'chair',
-                                 'earphone', 'guitar', 'knife', 'lamp', 'laptop', 
+                                 'earphone', 'guitar', 'knife', 'lamp', 'laptop',
                                  'motor', 'mug', 'pistol', 'rocket', 'skateboard', 'table'])
     parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
                         help='Size of batch)')
@@ -313,7 +334,7 @@ if __name__ == "__main__":
                         help='enables CUDA training')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--eval', type=bool,  default=False,
+    parser.add_argument('--eval', type=bool, default=False,
                         help='evaluate the model')
     parser.add_argument('--num_points', type=int, default=2048,
                         help='num of points to use')
