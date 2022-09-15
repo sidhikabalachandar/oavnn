@@ -115,7 +115,7 @@ def train(args, io):
             num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
         seg_num_all = 2
     else:
-        train_dataset = ShapeNetCustom(args.data_path, partition='trainval', num_points=args.num_points,
+        train_dataset = ShapeNetCustom(data_path=args.data_path, partition='trainval', num_points=args.num_points,
                                        class_choice=args.class_choice)
         if (len(train_dataset) < 100):
             drop_last = False
@@ -123,7 +123,7 @@ def train(args, io):
             drop_last = True
         train_loader = DataLoader(train_dataset, num_workers=8, batch_size=args.batch_size, shuffle=True,
                                   drop_last=drop_last)
-        test_loader = DataLoader(ShapeNetCustom(args.data_path, partition='test', num_points=args.num_points,
+        test_loader = DataLoader(ShapeNetCustom(data_path=args.data_path, partition='test', num_points=args.num_points,
                                                 class_choice=args.class_choice),
                                  num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
         seg_num_all = 2
@@ -162,7 +162,6 @@ def train(args, io):
 
     best_test_iou = 0
     for epoch in range(args.epochs):
-        print("start first epoch")
         ####################
         # Train
         ####################
