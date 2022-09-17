@@ -195,7 +195,6 @@ def load_data_single_class(partition, cat2id, num_points, flatten_dim):
 
 def load_data_custom(partition, cat2id, num_points, flatten_dim, data_path):
     DATA_DIR = data_path
-    print(DATA_DIR)
     all_data = []
     all_label = []
     all_seg = []
