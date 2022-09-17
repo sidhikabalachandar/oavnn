@@ -47,15 +47,8 @@ def _init_():
     os.system('cp data.py results/partseg' + '/' + args.exp_name + '/' + 'data.py.backup')
 
 
-def calculate_shape_IoU(pred_np, seg_np, label, class_choice, args):
-    if args.dataset == 'shapenetpart' or args.dataset == "body" or args.dataset == "wing" or args.dataset == 'shapenet_single_class':
-        seg_num = [2, 2, 2, 4, 4, 3, 3, 2, 4, 2, 6, 2, 3, 3, 3, 3]
-    elif args.dataset == 'shapenetfourfb' or args.dataset == 'shapenetfourtb' or args.dataset == "shapenetfourfbnonsymmetrized" or args.dataset == "bodywing" or args.dataset == "shapenetcustomsep":
-        seg_num = [4, 2, 2, 4, 4, 3, 3, 2, 4, 2, 6, 2, 3, 3, 3, 3]
-    elif args.dataset == 'shapenetsym' or args.dataset == 'shapeneteight' or args.dataset == "shapenetpartsym":
-        seg_num = [8, 4, 4, 8, 8, 6, 6, 4, 8, 4, 12, 4, 6, 6, 6, 6]
-    elif args.dataset == 'shapenettwelve':
-        seg_num = [12, 4, 4, 8, 8, 6, 6, 4, 8, 4, 12, 4, 6, 6, 6, 6]
+def calculate_shape_IoU(pred_np, seg_np, label, class_choice):
+    seg_num = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
     label = label.squeeze()
     shape_ious = []
     for shape_idx in range(seg_np.shape[0]):
@@ -208,6 +201,7 @@ def train(args, io):
             train_loss += loss.item() * batch_size
             seg_np = seg.cpu().numpy()  # (batch_size, num_points)
             pred_np = pred.detach().cpu().numpy()  # (batch_size, num_points)
+
             train_true_cls.append(seg_np.reshape(-1))  # (batch_size * num_points)
             train_pred_cls.append(pred_np.reshape(-1))  # (batch_size * num_points)
             train_true_seg.append(seg_np)
@@ -228,7 +222,7 @@ def train(args, io):
         train_true_seg = np.concatenate(train_true_seg, axis=0)
         train_pred_seg = np.concatenate(train_pred_seg, axis=0)
         train_label_seg = np.concatenate(train_label_seg)
-        train_ious = calculate_shape_IoU(train_pred_seg, train_true_seg, train_label_seg, args.class_choice, args)
+        train_ious = calculate_shape_IoU(train_pred_seg, train_true_seg, train_label_seg, args.class_choice)
         outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f, train iou: %.6f' % (epoch,
                                                                                                   train_loss * 1.0 / count,
                                                                                                   train_acc,
@@ -277,6 +271,7 @@ def train(args, io):
             test_loss += loss.item() * batch_size
             seg_np = seg.cpu().numpy()
             pred_np = pred.detach().cpu().numpy()
+
             test_true_cls.append(seg_np.reshape(-1))
             test_pred_cls.append(pred_np.reshape(-1))
             test_true_seg.append(seg_np)
@@ -289,7 +284,7 @@ def train(args, io):
         test_true_seg = np.concatenate(test_true_seg, axis=0)
         test_pred_seg = np.concatenate(test_pred_seg, axis=0)
         test_label_seg = np.concatenate(test_label_seg)
-        test_ious = calculate_shape_IoU(test_pred_seg, test_true_seg, test_label_seg, args.class_choice, args)
+        test_ious = calculate_shape_IoU(test_pred_seg, test_true_seg, test_label_seg, args.class_choice)
         outstr = 'Test %d, loss: %.6f, test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (epoch,
                                                                                               test_loss * 1.0 / count,
                                                                                               test_acc,
