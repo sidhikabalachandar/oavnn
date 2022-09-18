@@ -31,7 +31,7 @@ from util import cal_loss, IOStream
 import sklearn.metrics as metrics
 import pickle
 
-from pytorch3d.transforms import RotateAxisAngle, Rotate, random_rotations
+# from pytorch3d.transforms import RotateAxisAngle, Rotate, random_rotations
 
 
 def _init_():
@@ -169,21 +169,21 @@ def train(args, io):
         for data, label, seg in train_loader:
             seg = get_lr_seg(data)
             trot = None
-            if args.rot == 'z':
-                trot = RotateAxisAngle(angle=torch.rand(data.shape[0]) * 360, axis="Z", degrees=True, device=device)
-            elif args.rot == 'so3':
-                R = random_rotations(data.shape[0])
-                unrot_R = torch.inverse(R)
-                trot = Rotate(R=R, device=device)
-                tunrot = Rotate(R=unrot_R, device=device)
+            # if args.rot == 'z':
+            #     trot = RotateAxisAngle(angle=torch.rand(data.shape[0]) * 360, axis="Z", degrees=True, device=device)
+            # elif args.rot == 'so3':
+            #     R = random_rotations(data.shape[0])
+            #     unrot_R = torch.inverse(R)
+            #     trot = Rotate(R=R, device=device)
+            #     tunrot = Rotate(R=unrot_R, device=device)
 
             label_one_hot = np.zeros((label.shape[0], 16))
             for idx in range(label.shape[0]):
                 label_one_hot[idx, label[idx]] = 1
             label_one_hot = torch.from_numpy(label_one_hot.astype(np.float32))
             data, label_one_hot, seg = data.to(device), label_one_hot.to(device), seg.to(device)
-            if trot is not None:
-                data = trot.transform_points(data)
+            # if trot is not None:
+            #     data = trot.transform_points(data)
 
             seg = seg.type(torch.int64)
 
@@ -244,10 +244,10 @@ def train(args, io):
         for data, label, seg in test_loader:
             seg = get_lr_seg(data)
             trot = None
-            if args.rot == 'z':
-                trot = RotateAxisAngle(angle=torch.rand(data.shape[0]) * 360, axis="Z", degrees=True, device=device)
-            elif args.rot == 'so3':
-                trot = Rotate(R=random_rotations(data.shape[0]), device=device)
+            # if args.rot == 'z':
+            #     trot = RotateAxisAngle(angle=torch.rand(data.shape[0]) * 360, axis="Z", degrees=True, device=device)
+            # elif args.rot == 'so3':
+            #     trot = Rotate(R=random_rotations(data.shape[0]), device=device)
 
             seg = seg - seg_start_index
             label_one_hot = np.zeros((label.shape[0], 16))
@@ -255,8 +255,8 @@ def train(args, io):
                 label_one_hot[idx, label[idx]] = 1
             label_one_hot = torch.from_numpy(label_one_hot.astype(np.float32))
             data, label_one_hot, seg = data.to(device), label_one_hot.to(device), seg.to(device)
-            if trot is not None:
-                data = trot.transform_points(data)
+            # if trot is not None:
+            #     data = trot.transform_points(data)
 
             seg = seg.type(torch.int64)
 
