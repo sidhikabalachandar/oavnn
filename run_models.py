@@ -114,11 +114,11 @@ def train(args, io):
             drop_last = False
         else:
             drop_last = True
-        train_loader = DataLoader(train_dataset, num_workers=8, batch_size=args.batch_size, shuffle=True,
+        train_loader = DataLoader(train_dataset, num_workers=1, batch_size=args.batch_size, shuffle=True,
                                   drop_last=drop_last)
         test_loader = DataLoader(ShapeNetCustom(data_path=args.data_path, partition='test', num_points=args.num_points,
                                                 class_choice=args.class_choice),
-                                 num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+                                 num_workers=1, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
         seg_num_all = 2
 
     device = torch.device("cuda" if args.cuda else "cpu")
