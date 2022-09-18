@@ -268,6 +268,9 @@ def train(args, io):
             loss = criterion(seg_pred.view(-1, seg_num_all), seg.view(-1, 1).squeeze())
             pred = seg_pred.max(dim=2)[1]
             count += batch_size
+            
+            print(loss)
+            print(loss.item())
             test_loss += loss.item() * batch_size
             seg_np = seg.cpu().numpy()
             pred_np = pred.detach().cpu().numpy()
