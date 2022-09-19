@@ -24,4 +24,5 @@ The code is structured to use any point cloud dataset of HDF5 type. Each file mu
   - NUM is the number of points per example. We use 128 points per example.
     
   </li>
+  <li>Results are saved in the results folder. They list the training and testing accuracy of each epoch.</li>
 </ol>
