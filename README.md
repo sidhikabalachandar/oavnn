@@ -13,7 +13,9 @@ The code is structured to use any point cloud dataset of HDF5 type. Each file mu
 <ol>
   <li>Set up the conda environment using the provided environment.yml file.</li>
   <li>Train/Test the model using the following command:
-      python run_models.py --exp_name dgcnn_cap_run0 --model dgcnn --rot so3 --class_choice cap --data_path PATH --num_points 128
+    
+        python run_models.py --exp_name dgcnn_cap_run0 --model dgcnn --rot so3 --class_choice cap --data_path PATH --num_points 128
+    
   </li>
   <li>Third item</li>
 </ol>
