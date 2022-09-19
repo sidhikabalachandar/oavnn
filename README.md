@@ -14,8 +14,14 @@ The code is structured to use any point cloud dataset of HDF5 type. Each file mu
   <li>Set up the conda environment using the provided environment.yml file.</li>
   <li>Train/Test the model using the following command:
     
-        python run_models.py --exp_name dgcnn_cap_run0 --model dgcnn --rot so3 --class_choice cap --data_path PATH --num_points 128
+        python run_models.py --exp_name NAME --model MODEL --rot ROT --class_choice CLASS --data_path PATH --num_points NUM
+    
+    - NAME is the name of the experiment. 
+    - MODEL specifies which model to use and is one of the following: dgcnn, vnn, complex_only, shell_only, or oavnn. 
+    - ROT specifies how the data is transformed, and is one of the following: aligned (aligned data), z (rotated only about vertical axis), so3 (full rotation). We present results using full so3 rotation. 
+    - CLASS specifies the object class. We present results for aero, cap, and chair. 
+    - PATH is a path from root to the data directory. Data directory should contain a subdirectory called "data_hdf5" with the HDF5 files. 
+    - NUM is the number of points per example. We use 128 points per example.
     
   </li>
-  <li>Third item</li>
 </ol>
